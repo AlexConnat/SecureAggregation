@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="30"/>
+    <title>Display Server Storage</title>
+  </head>
+  <body>
+
+    <h1>Server Storage:</h1>
+
+
+
+    <h3>Public Keys C_u</h3>
+
+    <ul>
+      {% for sid in PUBLIC_KEYS_CU %}
+        <li>{{sid}} : {{PUBLIC_KEYS_CU[sid]}}</li>
+      {% endfor %}
+    </ul>
+
+
+    <h3>Public Keys S_u</h3>
+
+    <ul>
+      {% for sid in PUBLIC_KEYS_SU %}
+        <li>{{sid}} : {{PUBLIC_KEYS_SU[sid]}}</li>
+      {% endfor %}
+    </ul>
+
+  </body>
+</html>
