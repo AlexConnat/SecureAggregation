@@ -18,3 +18,11 @@ def pretty_print(d, indent=0):
             pretty_print(value, indent+1)
         else:
             print('\t' * (indent+1) + str(value))
+
+# From int to hex string
+def int_to_hex(i):
+    return '{:02x}'.format(i)
+
+# From hex string to int
+def hex_to_int(s):
+    return int(s, 16)
