@@ -75,7 +75,7 @@ def store_keys(pubkeys):
 
 
 
-def compute_round_1():
+def compute_round_1(): # TODO: Store everything in CLIENT_STORAGE
 
     # Compute n
     n = len(CLIENT_STORAGE.keys())                                               ; print('n =', n)
@@ -104,6 +104,7 @@ def compute_round_1():
     # Create t-out-of-n shares for seed b
     shares_b = SecretSharer.split_secret(int_to_hex(b), t, n)                    ; print('shares_b =', shares_b)
 
+    list_encrypted_messages = {}
     print('-------------------------')
     # For each client "client_sid"
     for ID, client_sid in enumerate(CLIENT_STORAGE.keys()):
@@ -111,21 +112,27 @@ def compute_round_1():
         if client_sid == my_sid:
             continue # Skip my own sid
 
-        # print(ID, 'For Client', client_sid)
-        # Derive encryption key enc_key_for_sid (Diffie-Hellman Agreement)
-        # enc_key_for_sid = my_csk.update(CLIENT_STORAGE[client_sid]['cpk'])
+        print(ID, 'For Client', client_sid)
 
-        ####### DO IT HERE???? ############
-        # Derive secret shared mask s_mask_for_sid (Diffie-Hellman Agreement)
-        s_mask_shared = DHKE.agree(my_ssk, CLIENT_STORAGE[client_sid]['spk'])    #s_masks[v] = s_mask_v  # in a big list?
-        print('client_sid =', client_sid)
-        print('s_mask_shared =', s_mask_shared)
-        ###################################
+        # Derive encryption key enc_key_for_sid (Diffie-Hellman Agreement)
+        enc_key_for_sid = DHKE.agree(my_csk, CLIENT_STORAGE[client_sid]['cpk'])  ; print('enc_key_for_sid =', enc_key_for_sid)
+
+        # Derive secret shared mask seed s_mask_for_sid (Diffie-Hellman Agreement)
+        s_mask_for_sid = DHKE.agree(my_ssk, CLIENT_STORAGE[client_sid]['spk'])   ; print('s_mask_for_sid =', s_mask_for_sid)
 
         # Client "client_sid" will be sent this message:
-        # msg = protocol_version || my_sid || client_sid || shares_my_ssk[ID] || a || b
-        # enc_msg = Encrypt(enc_key_for_sid, msg)
+        msg = 'ProtoV1.0' + ' || ' + str(my_sid) + ' || ' + str(client_sid) + ' || ' + str(shares_my_ssk[ID]) + ' || ' + str(a) + ' || ' + str(b)
+
+        # Encrypt the message with the pre-derived shared encryption key
+        # enc_msg = Encrypt(enc_key_for_sid, msg) # TODO: Encrypt
+
+        # Store the encrypted messages in a dictionnary (keyed by client_sid) that will be sent to the server
+        list_encrypted_messages[client_sid] = msg # TODO: Only send encrypted messages
+
         print('-------------------------')
+
+    print("ET VOILA!")
+    pretty_print(list_encrypted_messages)
 
 
 
