@@ -12,17 +12,29 @@ DO_GLOBAL_LOGGING = False
 DEBUG = True
 
 
-TIMEOUT_ROUND_0 = 10
+TIMEOUT_ROUND_0 = 15
 SERVER_STORAGE = {}
 
 app = Flask(__name__)
-sio = SocketIO(app, logger=DO_GLOBAL_LOGGING)
+sio = SocketIO(app, logger=DO_GLOBAL_LOGGING) # async_mode='eventlet'
+
+
 
 ##### Just for the PoC - Remove in the final product ###########################
 @app.route('/server_storage')
 def index():
     return render_template('display_server_storage.html', **SERVER_STORAGE)
 ################################################################################
+
+
+@sio.on('connect')
+def connect(): # also use request.environ???
+    sio.emit('your sid', request.sid, room=request.sid) # We'll use the sid to identify client, we let them know who they are
+
+@sio.on('disconnect')
+def disconnect():
+    pass
+    # print('Bye', request.sid)
 
 
 @sio.on('pubkeys')
@@ -70,6 +82,15 @@ def timer_round_0():
     sio.sleep(TIMEOUT_ROUND_0)
     if DEBUG:
         print(bcolors.BOLD, bcolors.YELLOW, 'Timer Ends', bcolors.ENDC)
+
+
+    n = len(SERVER_STORAGE.keys())
+    if n < 3:
+        print(bcolors.BOLD, bcolors.RED, 'Not enough clients. Aborting.', bcolors.ENDC)
+        sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> should disconnect
+        sio.stop()
+        sio.sleep(1)
+
     if DEBUG:
         print(bcolors.YELLOW, 'Broadcasting list of pubkeys to clients.', bcolors.ENDC)
 

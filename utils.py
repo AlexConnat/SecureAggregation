@@ -12,16 +12,22 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 def pretty_print(d, indent=0):
+    print()
     for key, value in d.items():
         print('\t' * indent + str(key) + ':')
         if isinstance(value, dict):
             pretty_print(value, indent+1)
         else:
             print('\t' * (indent+1) + str(value))
+        print()
 
 # From int to hex string
 def int_to_hex(i):
     return '{:02x}'.format(i)
+
+# # From int to d- hex string
+# def int_to_hex(i,d):
+#     return "{0:0{1}x}".format(i,d)
 
 # From hex string to int
 def hex_to_int(s):
