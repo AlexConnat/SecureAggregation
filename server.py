@@ -5,7 +5,7 @@ from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 import time
 
-from utils import bcolors
+from utils import bcolors, pretty_print
 
 
 DO_GLOBAL_LOGGING = False
@@ -104,6 +104,67 @@ def timer_round_0():
             print('No keys cpk or spk for client', client_sid)
 
     sio.emit('list pubkeys', list_pubkeys) # No callback because it's a broadcast message (room=/)
+
+    # After some timeout??
+    sio.start_background_task(construct_y)
+
+
+
+
+
+@sio.on('list encrypted messages')
+def handle_encrypted_messages(encrypted_messages):
+
+    sending_client_sid = request.sid
+    print(bcolors.GREEN, 'Received encrypted messages from', sending_client_sid, bcolors.ENDC)
+    # pretty_print(encrypted_messages)
+    # print()
+
+    # TODO: Again, a timer for Round1
+
+    # Forward messages to everyone else
+    sio.start_background_task(forward_encrypted_messages, encrypted_messages)
+
+
+
+    return True, 'Thanks for the list!'
+
+
+
+def forward_encrypted_messages(encrypted_messages):
+
+    for client_sid, enc_msg in encrypted_messages.items():
+        # Send to each client the message encrypted for it
+        sio.emit('enc msg', enc_msg, room=client_sid)
+
+
+
+
+def construct_y():
+
+    sio.sleep(5)
+
+    print('\n\n==============')
+    print('RECONSTRUCTION')
+    print('==============\n\n')
+    for client_sid in SERVER_STORAGE.keys():
+        print('sid =', client_sid)
+        print(SERVER_STORAGE[client_sid]['y'])
+        print()
+
+
+@sio.on('y')
+def handle_y(y):
+
+    sending_client_sid = request.sid
+    print(bcolors.GREEN, 'Received masked input y from', sending_client_sid, bcolors.ENDC)
+    print(y)
+    print('{}{}{}{}{}{}{}{}{}{}{}{}')
+
+    SERVER_STORAGE[sending_client_sid]['y'] = y
+
+    return True, 'Merveilleux!'
+
 
 
 sio.start_background_task(timer_round_0)
