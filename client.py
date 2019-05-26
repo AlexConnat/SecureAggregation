@@ -80,7 +80,7 @@ def round0():
 ##########################################
 
 def round1_handler(pubkeys):
-    print('Received public keys from server...')
+    print_success('Received public keys from server...', CLIENT_VALUES['my_sid'])
     sio.start_background_task(round1, pubkeys)
 
 def round1(pubkeys):
@@ -91,7 +91,7 @@ def round1(pubkeys):
             CLIENT_STORAGE.setdefault(client_sid, {})['cpk'] = pubkeys_for_client_sid['cpk']
             CLIENT_STORAGE.setdefault(client_sid, {})['spk'] = pubkeys_for_client_sid['spk']
         except KeyError:
-            print(bcolors.RED + 'Missing key cpk or spk for client' + bcolors.END, client_sid)
+            print_failure('Missing key cpk or spk in server''s messsage.', request.sid)
             sio.disconnect()
 
     # Compute n, the number of active clients
@@ -168,39 +168,42 @@ def round1(pubkeys):
 ### MASK AND SEND INPUT VECTOR ###
 ##################################
 
-def round2_handler(enc_msg):
-    print('Received encrypted message from server...')
-    sio.start_background_task(round2, enc_msg)
+def round2_handler(enc_msgs):
+    print_success('Received list of encrypted messages for me from server...', CLIENT_VALUES['my_sid'])
+    sio.start_background_task(round2, enc_msgs)
+    # return True, 'List of encrypted messages succesfully received by client.', CLIENT_VALUES['my_sid'] # TODO: Acknowledgement is confusing in the logs
 
-def round2(enc_msg):
+def round2(enc_msgs):
 
-    msg = enc_msg # TODO: Add Decryption function
+    pretty_print(enc_msgs)
 
-    msg_parts = msg.split(' || ')
+    for client_sid, enc_msg in enc_msgs.items():
 
-    protocol_id = msg_parts[0] # TODO: What's the use?
-    client_sid = msg_parts[1]
-    my_sid = msg_parts[2]
-    share_ssk_for_sid = msg_parts[3]
-    share_a_for_sid = msg_parts[4]
-    share_b_for_sid = msg_parts[5]
+        msg = enc_msg # TODO: Add Decryption function
 
-    # Store has been received for client_sid
-    CLIENT_STORAGE[client_sid]['share_ssk'] = share_ssk_for_sid
-    CLIENT_STORAGE[client_sid]['share_a'] = share_a_for_sid
-    CLIENT_STORAGE[client_sid]['share_b'] = share_b_for_sid
+        msg_parts = msg.split(' || ')
 
-    # Sanity check
-    if my_sid != CLIENT_VALUES['my_sid']:
-        print_failure('Received wrong message!', CLIENT_VALUES['my_sid'])
-        sio.disconnect()
+        protocol_id = msg_parts[0] # TODO: What's the use?
+        from_client_sid = msg_parts[1]
+        my_sid = msg_parts[2]
+        share_ssk_for_sid = msg_parts[3]
+        share_a_for_sid = msg_parts[4]
+        share_b_for_sid = msg_parts[5]
 
-    #########################################
-    print('Message from sid ', client_sid)
-    print(msg_parts)
-    #########################################
+        # Store has been received for client_sid
+        CLIENT_STORAGE[from_client_sid]['share_ssk'] = share_ssk_for_sid
+        CLIENT_STORAGE[from_client_sid]['share_a'] = share_a_for_sid
+        CLIENT_STORAGE[from_client_sid]['share_b'] = share_b_for_sid
 
-    for client_sid in CLIENT_STORAGE.keys():
+        # Sanity check
+        if client_sid != from_client_sid or my_sid != CLIENT_VALUES['my_sid']:
+            print_failure('Received wrong message!', CLIENT_VALUES['my_sid'])
+            sio.disconnect()
+
+        #########################################
+        print('Message from sid ', client_sid)
+        print(msg_parts)
+        #########################################
 
         # Derive secret shared mask seed s_for_sid (Diffie-Hellman Agreement)
         s_for_sid = DHKE.agree(CLIENT_VALUES['my_ssk'], CLIENT_STORAGE[client_sid]['spk'])         #; print('s_for_sid =', s_for_sid)
@@ -226,6 +229,8 @@ def round2(enc_msg):
     for client_sid in CLIENT_STORAGE.keys():
         if client_sid == CLIENT_VALUES['my_sid']:
             continue # Skip my own SID
+        if CLIENT_STORAGE[client_sid].get('s_mask', None) == None:
+            continue # We did not receive shared mask from this client SID
         if CLIENT_VALUES['my_sid'] > client_sid:
             all_masks += CLIENT_STORAGE[client_sid]['s_mask'] # Add the mask of smaller client SIDs
         else:
@@ -234,7 +239,7 @@ def round2(enc_msg):
     # Here is the final output "y" to send to server
     y = yy + all_masks
 
-    print_info('Sending contribution "y" to server...', CLIENT_VALUES['my_sid'])
+    print_info('Sending masked input "y" to server...', CLIENT_VALUES['my_sid'])
     sio.emit('y', list(y), callback=server_ack) # Send "y" as a python list because numpy arrays are not JSON-serializable
 
 
