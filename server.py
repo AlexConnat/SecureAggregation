@@ -10,32 +10,11 @@ from utils import bcolors, pretty_print, print_info, print_success, print_failur
 import numpy as np
 
 
-###############################
-## BIG UNKNOWN CONSTANTS TBD ##
-###############################
-SIGMA = 40
-NB_CLASSES = 5
-###############################
-
-
-DO_GLOBAL_LOGGING = False
-
-TIMEOUT_ROUND_0 = 15
-TIMEOUT_ROUND_1 = 10
-TIMEOUT_ROUND_2 = 5
-
-SERVER_STORAGE = {}
-SERVER_VALUES = {}
-
-app = Flask(__name__)
-sio = SocketIO(app, logger=DO_GLOBAL_LOGGING) # async_mode='eventlet'
-
-
 
 ##### Just for the PoC - Remove in the final product ###########################
-@app.route('/server_storage')
-def index():
-    return render_template('display_server_storage.html', **SERVER_STORAGE)
+# @app.route('/server_storage')
+# def index():
+#     return render_template('display_server_storage.html', **SERVER_STORAGE)
 ################################################################################
 
 
@@ -47,55 +26,62 @@ def client_ack(OK, msg, client_sid):
         sio.disconnect()
 
 
-@sio.on('connect')
+
+#############################################################################################
+# Handlers should be short (https://github.com/miguelgrinberg/Flask-SocketIO/issues/597)
+# If big CPU work, use async_handlers = True, or just start_background_task
+#############################################################################################
+
+
+# @sio.on('connect')
 def connect(): # also use request.environ???
     sio.emit('your sid', request.sid, room=request.sid) # We'll use the sid to identify client, we let them know who they are
 
-@sio.on('disconnect')
+# @sio.on('disconnect')
 def disconnect():
     pass
     # print('Bye', request.sid)
 
 
-@sio.on('pubkeys')
+# @sio.on('pubkeys')
 def handle_pubkeys(data):
+    sending_client_sid = request.sid
+    print_success('Received public keys.', sending_client_sid)
 
-    print_success('Received public keys.', request.sid)
-
-    elapsed_time = time.time() - START_TIME
-    if elapsed_time > TIMEOUT_ROUND_0:
-        print_failure('Too late to send public keys.', request.sid)
-        return False, 'Too late to send public keys.'  # If FALSE, make this node drop (disconnect()) in the client callback
+    # elapsed_time = time.time() - START_TIME
+    # if elapsed_time > TIMEOUT_ROUND_0:
+    #     print_failure('Too late to send public keys.', sending_client_sid)
+    #     return False, 'Too late to send public keys.'  # If FALSE, make this node drop (disconnect()) in the client callback
 
     try:
-        SERVER_STORAGE.setdefault(request.sid, {})['cpk'] = data['cpk']
-        SERVER_STORAGE.setdefault(request.sid, {})['spk'] = data['spk']
+        SERVER_STORAGE.setdefault(sending_client_sid, {})['cpk'] = data['cpk']
+        SERVER_STORAGE.setdefault(sending_client_sid, {})['spk'] = data['spk']
     except:
-        print_failure('Missing key cpk or spk in client''s messsage.', request.sid)
+        print_failure('Missing key cpk or spk in client''s messsage.', sending_client_sid)
         return False, 'Missing key cpk or spk in your message.'
 
     return True, 'Public keys succesfully received by server.' # acknowledgement message that everything went fine
 
 
-@sio.on('list encrypted messages')
+# @sio.on('list encrypted messages')
 def handle_encrypted_messages(encrypted_messages):
+    # TODO: OUT-OF-TIME MESSAGE?
     sending_client_sid = request.sid
     print_success('Received list of encrypted messages.', sending_client_sid)
     SERVER_STORAGE[sending_client_sid]['list_enc_msg'] = encrypted_messages
     return True, 'List of encrypted messages succesfully received by server.'
 
 
-@sio.on('y')
+# @sio.on('y')
 def handle_y(y):
-
+    # TODO: OUT-OF-TIME MESSAGE?
     sending_client_sid = request.sid
-    print(bcolors.GREEN, 'Received masked input y from', sending_client_sid, bcolors.ENDC)
-    print(y)
-    print('{}{}{}{}{}{}{}{}{}{}{}{}')
-
+    print_success('Received masked input "y".', request.sid)
     SERVER_STORAGE[sending_client_sid]['y'] = y
+    return True, 'Masked input "y" succesfully received by server.'
 
-    return True, 'Merveilleux!'
+
+
 
 
 
@@ -158,7 +144,7 @@ def round1():
 
     list_enc_msg_FROM = {}  # Received encrypted messages from these SIDs
     for client_sid in SERVER_STORAGE.keys():
-        if (SERVER_STORAGE[client_sid].get('list_enc_msg', None) != None):
+        if 'list_enc_msg' in SERVER_STORAGE[client_sid].keys(): # Should have been set in the handler @sio.on('list encrypted messages')
             list_enc_msg_FROM[client_sid] = SERVER_STORAGE[client_sid]['list_enc_msg']
 
     n1 = len(list_enc_msg_FROM.keys())
@@ -201,7 +187,23 @@ def timer_round_2():
     round2()
 
 def round2():
+
+    n2 = 0 # TODO: Less hacky way to count number of messages?
+    for client_sid in SERVER_STORAGE.keys():
+        if 'y' in SERVER_STORAGE[client_sid].keys():
+            n2 += 1
+
+    if n2 < SERVER_VALUES['t']:
+        print_failure('Did not receive masked input "y" from enough clients. Abort.', 'Server')
+        sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
+        sio.stop()
+        sio.sleep(1)
+
+
+
     print('Processing round2!')
+
+
 
     print()
     print_info('Advertise list of "alive" clients from the previous round to all other alive clients.', 'Server')
@@ -225,8 +227,24 @@ def timer_round_3():
     round3()
 
 def round3():
+
+    n3 = 0 # TODO: Less hacky way to count number of messages?
+    for client_sid in SERVER_STORAGE.keys():
+        if 'b' in SERVER_STORAGE[client_sid].keys():
+            n3 += 1
+
+    if n3 < SERVER_VALUES['t']:
+        print_failure('Did not receive masks and shares from enough clients. Abort.', 'Server')
+        sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
+        sio.stop()
+        sio.sleep(1)
+
     print('Processing round3!')
-    print('Reconstructing output z!')
+
+
+    print_success('Reconstructing output z!', 'Server')
+
+    sio.emit('abort', 'SUPER COOL!')
     sio.stop()
 
 
@@ -239,36 +257,57 @@ def round3():
 
 
 
-def construct_y():
-
-    sio.sleep(5)
-
-    print('\n\n==============')
-    print('RECONSTRUCTION')
-    print('==============\n\n')
-    BigX = np.zeros(NB_CLASSES)
-    for client_sid in SERVER_STORAGE.keys():
-        print('sid =', client_sid)
-        print(SERVER_STORAGE[client_sid]['y'])
-        BigX += SERVER_STORAGE[client_sid]['y']
-        print()
-
-    print('BigX =', BigX)
-    # Should be equal to addition of BONJOUR MADAMEs
 
 
 
 
 
+###############################
+## BIG UNKNOWN CONSTANTS TBD ##
+###############################
+SIGMA = 40
+NB_CLASSES = 5
 
+TIMEOUT_ROUND_0 = 15
+TIMEOUT_ROUND_1 = 5
+TIMEOUT_ROUND_2 = 5
 
-
-
-sio.start_background_task(timer_round_0)
+ START_TIME = time.time() # TODO: Care about out-of-time messages
+###############################
 
 
 
 if __name__ == '__main__':
 
-    START_TIME = time.time()
+    DO_GLOBAL_LOGGING = False
+
+    # This dictionary will contain all the values used by the server
+    # to keep track of time, rounds, and number of clients
+    global SERVER_VALUES
+    SERVER_VALUES = {}
+
+    # This dictionary will contain the information that the server
+    # received about all clients. It is keyed by client_sid.
+    global SERVER_STORAGE
+    SERVER_STORAGE = {}
+
+    app = Flask(__name__)
+    sio = SocketIO(app, logger=DO_GLOBAL_LOGGING) # async_mode='eventlet'
+
+    sio.on('connect', connect)
+    sio.on('disconnect', disconnect)
+
+    # ROUND 0
+    sio.on('pubkeys', handle_pubkeys)
+
+    # ROUND 1
+    sio.on('list encrypted messages', handle_encrypted_messages)
+
+    # ROUND 2
+    sio.on('y', handle_y)
+
+
+    sio.start_background_task(timer_round_0)
+
+
     sio.run(app, host='127.0.0.1', port=9876, debug=DO_GLOBAL_LOGGING)
