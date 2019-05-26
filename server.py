@@ -59,26 +59,26 @@ def handle_pubkeys(data):
         try:
             SERVER_STORAGE.setdefault(request.sid, {})['cpk'] = data['cpk']
         except KeyError:
-            error_msg = 'sid=' + str(request.sid) + ': no key cpk.'
+            error_msg = 'No key cpk.'
             if DEBUG:
                 print(bcolors.RED, error_msg, bcolors.ENDC)
             return False, error_msg
         try:
             SERVER_STORAGE.setdefault(request.sid, {})['spk'] = data['spk']
         except KeyError:
-            error_msg = 'sid=' + str(request.sid) + ': no key spk.'
+            error_msg = 'No key spk.'
             if DEBUG:
                 print(bcolors.RED, error_msg, bcolors.ENDC)
             return False, error_msg
 
     else:
-        error_msg = 'sid=' + str(request.sid) + ': too late to send public keys.'
+        error_msg = 'Too late to send public keys.'
         if DEBUG:
             print(bcolors.RED, error_msg, bcolors.ENDC)
         return False, error_msg  # If FALSE, make this node drop (disconnect()) in the client callback
 
 
-    success_msg = 'sid=' + str(request.sid) + ': public keys succesfully stored.'
+    success_msg = 'Public keys succesfully stored by server.'
     if DEBUG:
         print(bcolors.GREEN, success_msg, bcolors.ENDC)
     return True, success_msg # acknowledgement message that everything went fine
@@ -112,10 +112,10 @@ def timer_round_0():
         except KeyError:
             print('No keys cpk or spk for client', client_sid)
 
-    sio.emit('list pubkeys', list_pubkeys) # No callback because it's a broadcast message (room=/)
+    sio.emit('round1', list_pubkeys) # No callback because it's a broadcast message (room=/)
 
     # After some timeout??
-    sio.start_background_task(construct_y)
+    #sio.start_background_task(construct_y)
 
 
 
@@ -135,8 +135,7 @@ def handle_encrypted_messages(encrypted_messages):
     sio.start_background_task(forward_encrypted_messages, encrypted_messages)
 
 
-
-    return True, 'Thanks for the list!'
+    return True, 'List of encrypted messages succesfully stored by server.'
 
 
 
@@ -144,7 +143,7 @@ def forward_encrypted_messages(encrypted_messages):
 
     for client_sid, enc_msg in encrypted_messages.items():
         # Send to each client the message encrypted for it
-        sio.emit('enc msg', enc_msg, room=client_sid)
+        sio.emit('round2', enc_msg, room=client_sid)
 
 
 

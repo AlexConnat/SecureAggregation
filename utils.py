@@ -32,3 +32,13 @@ def int_to_hex(i):
 # From hex string to int
 def hex_to_int(s):
     return int(s, 16)
+
+
+def print_info(msg, sid):
+    print(bcolors.YELLOW + bcolors.BOLD + 'sid='+str(sid) + bcolors.ENDC + bcolors.YELLOW + ' -- ' + str(msg) + bcolors.ENDC)
+
+def print_success(msg, sid):
+    print(bcolors.GREEN + bcolors.BOLD + 'sid='+str(sid) + bcolors.ENDC + bcolors.GREEN + ' -- ' + str(msg) + bcolors.ENDC)
+
+def print_failure(msg, sid):
+    print(bcolors.RED + bcolors.BOLD + 'sid='+str(sid) + bcolors.ENDC + bcolors.RED + ' -- ' + str(msg) + bcolors.ENDC)
