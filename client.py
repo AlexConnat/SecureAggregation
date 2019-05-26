@@ -16,196 +16,10 @@ from diffie_hellman import DHKE
 from utils import bcolors, pretty_print, int_to_hex, print_info, print_success, print_failure
 
 
-
 #############################################################################################
 # Handlers should be short (https://github.com/miguelgrinberg/Flask-SocketIO/issues/597)
 # If big CPU work, use async_handlers = True, or just start_background_task
 #############################################################################################
-
-
-
-
-# # Receive the list of every client's public keys from the server
-# # @sio.on('list pubkeys')
-# def handle_list_pubkeys(pubkeys):
-#     print('Received public keys from server...')
-#     sio.start_background_task(store_keys, pubkeys)
-#
-#
-# # @sio.on('enc msg')
-# def handle_enc_msg(enc_msg):
-#     print('Received encrypted message from server...')
-#     sio.start_background_task(decrypt_and_store_enc_msg, enc_msg)
-#
-#
-#
-#
-#
-#
-# def store_keys(pubkeys):
-#     print('Storing the keys...')
-#     for client_sid, pubkeys_for_client_sid in pubkeys.items():
-#         try:
-#             CLIENT_STORAGE.setdefault(client_sid, {})['cpk'] = pubkeys_for_client_sid['cpk']
-#             CLIENT_STORAGE.setdefault(client_sid, {})['spk'] = pubkeys_for_client_sid['spk']
-#         except KeyError:
-#             print('Missing key cpk or spk for client', client_sid)
-#
-#     # pretty_print(CLIENT_STORAGE)
-#     # print()
-#     sio.start_background_task(compute_round_1) # Background task or normal function?
-#
-#
-#
-#
-# def decrypt_and_store_enc_msg(enc_msg):
-#
-#     msg = enc_msg # TODO: Add Decryption function
-#
-#     msg_parts = msg.split(' || ')
-#     print(msg_parts)
-#     print('^^^^^^^^^^^^^^^^^^^^')
-#
-#     protocol_id = msg_parts[0]
-#     client_sid = msg_parts[1]
-#     my_sid = msg_parts[2]
-#     assert my_sid == CLIENT_VALUES['my_sid']
-#     share_ssk_for_sid = msg_parts[3]
-#     share_a_for_sid = msg_parts[4]
-#     share_b_for_sid = msg_parts[5]
-#
-#     # Store everything
-#     # CLIENT_STORAGE[client_sid][]3
-#
-#
-#
-# def compute_round_1(): # TODO: Store everything in CLIENT_STORAGE
-#
-#     # Compute n
-#     n = len(CLIENT_STORAGE.keys())                                               ; print('n =', n)
-#     CLIENT_VALUES['n'] = n
-#
-#     # Compute t
-#     t = int(n/2) + 1                                                             ; print('t =', t)
-#     CLIENT_VALUES['t'] = t
-#
-#     # Draw random seed a, and make a gaussian noise mask out of it
-#     a = secrets.randbits(32)                                                     ; print('a =', a) # TODO: Chose higher entropy
-#     CLIENT_VALUES['a'] = a
-#     np.random.seed(a)
-#     a_noise_mask = np.random.normal(0, float(SIGMA)/float(t), NB_CLASSES)        ; print('a_noise_mask =', a_noise_mask)
-#     CLIENT_VALUES['a_mask'] = a_noise_mask
-#
-#     # Draw random seed b, and make a mask out of it
-#     b = secrets.randbits(32)                                                     ; print('b =', b)
-#     CLIENT_VALUES['b'] = b
-#     np.random.seed(b)
-#     b_mask = np.random.uniform(-10, 10, NB_CLASSES)                              ; print('b_mask =', b_mask) # TODO: HOW TO CHOOSE THOSE VALUES???
-#     CLIENT_VALUES['b_mask'] = b_mask
-#
-#     # Create t-out-of-n shares for my private key my_ssk (as an hex_string)
-#     print('my_ssk =', my_ssk)
-#     print('type(my_ssk) =', type(my_ssk))
-#     shares_my_ssk = SecretSharer.split_secret(int_to_hex(my_ssk), t, n)          ; print('shares_my_ssk =', shares_my_ssk)
-#     CLIENT_VALUES['shares_my_ssk'] = shares_my_ssk
-#
-#     # Create t-out-of-n shares for seed a
-#     shares_a = SecretSharer.split_secret(int_to_hex(a), t, n)                    ; print('shares_a =', shares_a) # TODO: Shares size should'nt leak
-#     CLIENT_VALUES['shares_a'] = shares_a
-#
-#     # Create t-out-of-n shares for seed b
-#     shares_b = SecretSharer.split_secret(int_to_hex(b), t, n)                    ; print('shares_b =', shares_b)
-#     CLIENT_VALUES['shares_b'] = shares_b
-#
-#
-#     list_encrypted_messages = {}
-#     print('-------------------------')
-#     # For each client "client_sid"
-#     for ID, client_sid in enumerate(CLIENT_STORAGE.keys()):
-#
-#         if client_sid == CLIENT_VALUES['my_sid']:
-#             continue # Skip my own sid
-#
-#         print(ID, 'For Client', client_sid)
-#
-#         # Derive encryption key enc_key_for_sid (Diffie-Hellman Agreement)
-#         enc_key_for_sid = DHKE.agree(my_csk, CLIENT_STORAGE[client_sid]['cpk'])  ; print('enc_key_for_sid =', enc_key_for_sid)
-#
-#         # Derive secret shared mask seed s_for_sid (Diffie-Hellman Agreement)
-#         s_for_sid = DHKE.agree(my_ssk, CLIENT_STORAGE[client_sid]['spk'])   ; print('s_for_sid =', s_for_sid)
-#
-#         # Derive s_mask from above seed
-#         np.random.seed(s_for_sid)
-#         s_mask_for_sid = np.random.uniform(-100, 100, NB_CLASSES) # TODO: Which values??
-#
-#         # Client "client_sid" will be sent this message:
-#         msg = 'ProtoV1.0' + ' || ' + str(CLIENT_VALUES['my_sid']) + ' || ' + str(client_sid) + ' || ' + str(shares_my_ssk[ID]) + ' || ' + str(shares_a[ID]) + ' || ' + str(shares_b[ID])
-#
-#         # Encrypt the message with the pre-derived shared encryption key
-#         # enc_msg = Encrypt(enc_key_for_sid, msg) # TODO: Encrypt
-#
-#         # Store the encrypted messages in a dictionnary (keyed by client_sid) that will be sent to the server
-#         list_encrypted_messages[client_sid] = msg # TODO: Only send encrypted messages
-#
-#
-#         CLIENT_STORAGE[client_sid]['enc_key'] = enc_key_for_sid
-#         CLIENT_STORAGE[client_sid]['s'] = s_for_sid
-#         CLIENT_STORAGE[client_sid]['s_mask'] = s_mask_for_sid
-#         CLIENT_STORAGE[client_sid]['msg'] = msg
-#         # CLIENT_STORAGE[client_sid]['enc_msg'] = enc_mask
-#
-#         print('-------------------------')
-#
-#     print('ET VOILA!')
-#     # pretty_print(list_encrypted_messages)
-#     print(bcolors.YELLOW, 'Sending list of encrypted messages...', bcolors.ENDC)
-#     sio.emit('list encrypted messages', list_encrypted_messages, callback=server_ack)
-#
-#
-#     # Create intermediary input noisy_x (the one that the server will aggregate)
-#     noisy_x = CLIENT_VALUES['x'] + a_noise_mask
-#     print('BONJOUR MONSIEUR -->', noisy_x)
-#
-#     # Mask noisy_x using the mask we generated earlier
-#     yy = noisy_x + b_mask
-#     print('BONJOUR MADAME -->', yy)
-#
-#     # Sum of all shared masks
-#     all_masks = np.zeros(NB_CLASSES)
-#     for client_sid in CLIENT_STORAGE.keys():
-#         if client_sid == CLIENT_VALUES['my_sid']:
-#             continue # Skip my own SID
-#
-#         print(CLIENT_VALUES['my_sid'], '&', client_sid)
-#
-#         if CLIENT_VALUES['my_sid'] > client_sid:
-#             print('ADD', CLIENT_STORAGE[client_sid]['s_mask'])
-#             all_masks += CLIENT_STORAGE[client_sid]['s_mask'] # Add the mask of smaller client SIDs
-#         else:
-#             print('SUBSTRACT', CLIENT_STORAGE[client_sid]['s_mask'])
-#             all_masks -= CLIENT_STORAGE[client_sid]['s_mask'] # Substract the mask of greater client SIDs
-#
-#     # Create the the final input y
-#     y = yy + all_masks
-#
-#     sio.emit('y', list(y), callback=server_ack) # As a python list because ndarray are not JSON-serializable
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def server_ack(OK, msg):
@@ -214,7 +28,6 @@ def server_ack(OK, msg):
     else:
         print_failure(msg, CLIENT_VALUES['my_sid'])
         sio.disconnect()
-
 
 # @sio.on('your sid')
 def set_sid(sid):
@@ -233,6 +46,10 @@ def disconnect():
 def abort(reason):
     sio.disconnect()
 
+
+############# ROUND 0 ###############
+### GENERATE AND SEND PUBLIC KEYS ###
+#####################################
 
 def round0():
 
@@ -257,6 +74,10 @@ def round0():
 
 
 
+############### ROUND 1 ##################
+###   RECEIVE PUBKEYS FROM EVERYONE,   ###
+### GENERATE AND SEND ENCRYPTED SHARES ###
+##########################################
 
 def round1_handler(pubkeys):
     print('Received public keys from server...')
@@ -343,41 +164,9 @@ def round1(pubkeys):
 
 
 
-
-
-    # # Create intermediary input noisy_x (the one that the server will aggregate)
-    # noisy_x = CLIENT_VALUES['x'] + a_noise_mask
-    # print('BONJOUR MONSIEUR -->', noisy_x)
-    #
-    # # Mask noisy_x using the mask we generated earlier
-    # yy = noisy_x + b_mask
-    # print('BONJOUR MADAME -->', yy)
-    #
-    # # Sum of all shared masks
-    # all_masks = np.zeros(NB_CLASSES)
-    # for client_sid in CLIENT_STORAGE.keys():
-    #     if client_sid == CLIENT_VALUES['my_sid']:
-    #         continue # Skip my own SID
-    #
-    #     print(CLIENT_VALUES['my_sid'], '&', client_sid)
-    #
-    #     if CLIENT_VALUES['my_sid'] > client_sid:
-    #         print('ADD', CLIENT_STORAGE[client_sid]['s_mask'])
-    #         all_masks += CLIENT_STORAGE[client_sid]['s_mask'] # Add the mask of smaller client SIDs
-    #     else:
-    #         print('SUBSTRACT', CLIENT_STORAGE[client_sid]['s_mask'])
-    #         all_masks -= CLIENT_STORAGE[client_sid]['s_mask'] # Substract the mask of greater client SIDs
-    #
-    # # Create the the final input y
-    # y = yy + all_masks
-    #
-    # sio.emit('y', list(y), callback=server_ack) # As a python list because ndarray are not JSON-serializable
-
-
-
-
-
-
+########### ROUND 2 ##############
+### MASK AND SEND INPUT VECTOR ###
+##################################
 
 def round2_handler(enc_msg):
     print('Received encrypted message from server...')
