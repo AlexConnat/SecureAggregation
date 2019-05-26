@@ -7,10 +7,19 @@ import time
 
 from utils import bcolors, pretty_print
 
+import numpy as np
+
+
+###############################
+## BIG UNKNOWN CONSTANTS TBD ##
+###############################
+SIGMA = 40
+NB_CLASSES = 5
+###############################
+
 
 DO_GLOBAL_LOGGING = False
 DEBUG = True
-
 
 TIMEOUT_ROUND_0 = 15
 SERVER_STORAGE = {}
@@ -147,10 +156,17 @@ def construct_y():
     print('\n\n==============')
     print('RECONSTRUCTION')
     print('==============\n\n')
+    BigX = np.zeros(NB_CLASSES)
     for client_sid in SERVER_STORAGE.keys():
         print('sid =', client_sid)
         print(SERVER_STORAGE[client_sid]['y'])
+        BigX += SERVER_STORAGE[client_sid]['y']
         print()
+
+    print('BigX =', BigX)
+    # Should be equal to addition of BONJOUR MADAMEs
+
+
 
 
 @sio.on('y')
