@@ -10,6 +10,23 @@ from utils import bcolors, pretty_print, print_info, print_success, print_failur
 import numpy as np
 
 
+###############################
+## BIG UNKNOWN CONSTANTS TBD ##
+###############################
+SIGMA = 40
+NB_CLASSES = 5
+
+TIMEOUT_ROUND_0 = 10
+TIMEOUT_ROUND_1 = 5
+TIMEOUT_ROUND_2 = 5
+
+START_TIME = time.time() # TODO: Care about out-of-time messages
+
+DO_GLOBAL_LOGGING = False
+###############################
+
+
+
 
 ##### Just for the PoC - Remove in the final product ###########################
 # @app.route('/server_storage')
@@ -18,6 +35,7 @@ import numpy as np
 ################################################################################
 
 
+# TODO: never used...
 def client_ack(OK, msg, client_sid):
     if OK:
         print_success(msg, client_sid)
@@ -82,6 +100,22 @@ def handle_y(y):
 
 
 
+# @sio.on('last round')
+def handle_masks(masks):
+    # TODO: OUT-OF-TIME MESSAGE?
+    sending_client_sid = request.sid
+    print_success('Received mask "b" and shares from dropped out clients.', request.sid)
+
+    if 'b' in masks.keys():
+        SERVER_STORAGE[sending_client_sid]['b'] = masks['b']
+    else:
+        print_failure('Missing mask "b" in client''s messsage.', sending_client_sid)
+        return False, 'Missing mask "b" in your message.'
+
+    if 'shares_dropped_out_clients' in masks.keys():
+        SERVER_STORAGE[sending_client_sid]['shares_dropped_out_clients'] = masks['shares_dropped_out_clients']
+
+    return True, 'Masks succesfully received by server.'
 
 
 
@@ -188,10 +222,16 @@ def timer_round_2():
 
 def round2():
 
-    n2 = 0 # TODO: Less hacky way to count number of messages?
+    alive_clients = []
+    dropped_out_clients = []
     for client_sid in SERVER_STORAGE.keys():
         if 'y' in SERVER_STORAGE[client_sid].keys():
-            n2 += 1
+            alive_clients.append(client_sid)
+        if not 'y' in SERVER_STORAGE[client_sid].keys():
+            if 'list_enc_msg' in SERVER_STORAGE[client_sid].keys(): # Only clients from last round! Meaning that we already received their encrypted shares
+                dropped_out_clients.append(client_sid)
+
+    n2 = len(alive_clients) # TODO: Less hacky way to count number of clients that sent "y"?
 
     if n2 < SERVER_VALUES['t']:
         print_failure('Did not receive masked input "y" from enough clients. Abort.', 'Server')
@@ -199,15 +239,11 @@ def round2():
         sio.stop()
         sio.sleep(1)
 
-
-
-    print('Processing round2!')
-
-
-
     print()
-    print_info('Advertise list of "alive" clients from the previous round to all other alive clients.', 'Server')
+    print_info('Advertise list of dropped out clients from the previous round to all still alive clients.', 'Server')
     print()
+
+    sio.emit('round3', dropped_out_clients)
 
     sio.start_background_task(timer_round_3)
 
@@ -228,10 +264,15 @@ def timer_round_3():
 
 def round3():
 
+    U4 = [] # TODO: Coherent notation... round3, U4???
+
     n3 = 0 # TODO: Less hacky way to count number of messages?
     for client_sid in SERVER_STORAGE.keys():
-        if 'b' in SERVER_STORAGE[client_sid].keys():
+        if 'b' in SERVER_STORAGE[client_sid].keys():           # TODO: Maybe create sets of client_sids for each users, like described in paper?
             n3 += 1
+            U4.append(client_sid)
+
+    assert len(U4) == n3
 
     if n3 < SERVER_VALUES['t']:
         print_failure('Did not receive masks and shares from enough clients. Abort.', 'Server')
@@ -239,12 +280,32 @@ def round3():
         sio.stop()
         sio.sleep(1)
 
-    print('Processing round3!')
 
 
-    print_success('Reconstructing output z!', 'Server')
+    print()
+    print(bcolors.BOLD + bcolors.PURPLE + 'Reconstructed output z!!!' + bcolors.ENDC)
 
-    sio.emit('abort', 'SUPER COOL!')
+    # TODO: recontruct shared masks of missing clients
+
+    # TODO: Reconstruct output z
+    bigX = np.zeros(NB_CLASSES)
+    for client_sid in U4:
+        b_mask_for_sid = np.random.seed(SERVER_STORAGE[client_sid]['b'])
+        b_mask = np.random.uniform(-10, 10, NB_CLASSES)
+        bigX += (SERVER_STORAGE[client_sid]['y'] - b_mask)
+
+
+    # print()
+    # pretty_print(SERVER_VALUES)
+    # pretty_print(SERVER_STORAGE)
+    # print()
+
+
+    print()
+    print('BONJOUR A TOUS:')
+    print(bigX)
+
+    sio.emit('complete', 'Reconstructed output z!')
     sio.stop()
 
 
@@ -262,24 +323,11 @@ def round3():
 
 
 
-###############################
-## BIG UNKNOWN CONSTANTS TBD ##
-###############################
-SIGMA = 40
-NB_CLASSES = 5
 
-TIMEOUT_ROUND_0 = 15
-TIMEOUT_ROUND_1 = 5
-TIMEOUT_ROUND_2 = 5
-
- START_TIME = time.time() # TODO: Care about out-of-time messages
-###############################
 
 
 
 if __name__ == '__main__':
-
-    DO_GLOBAL_LOGGING = False
 
     # This dictionary will contain all the values used by the server
     # to keep track of time, rounds, and number of clients
@@ -291,20 +339,37 @@ if __name__ == '__main__':
     global SERVER_STORAGE
     SERVER_STORAGE = {}
 
+
     app = Flask(__name__)
     sio = SocketIO(app, logger=DO_GLOBAL_LOGGING) # async_mode='eventlet'
 
-    sio.on('connect', connect)
-    sio.on('disconnect', disconnect)
 
-    # ROUND 0
-    sio.on('pubkeys', handle_pubkeys)
+    sio.on_event('connect', connect)
+    sio.on_event('disconnect', disconnect)
 
-    # ROUND 1
-    sio.on('list encrypted messages', handle_encrypted_messages)
+    ############# ROUND 0 ##############
+    ### RECEIVE PUBLIC KEYS FROM ALL ###
+    ###  CLIENTS AND BROADCAST THEM  ###
+    ####################################
+    sio.on_event('pubkeys', handle_pubkeys)
 
-    # ROUND 2
-    sio.on('y', handle_y)
+    ################ ROUND 1 #################
+    ### RECEIVE LIST OF ENCRYPTED MESSAGES ###
+    ### FROM ALL CLIENTS AND FORWARD THEM  ###
+    ##########################################
+    sio.on_event('list encrypted messages', handle_encrypted_messages)
+
+    ######################## ROUND 2 ###########################
+    ### RECEIVE MASKED INPUTS FROM ALL CLIENTS AND ADVERTISE ###
+    ###   ABOUT THE DROPPED OUT CLIENTS FROM LAST ROUND      ###
+    ############################################################
+    sio.on_event('y', handle_y)
+
+    #################### ROUND 3 #########################
+    ### RECEIVE ALL NECESSARY INFORMATION FROM CLIENTS ###
+    ###     TO RECONSTRUCT AGGREGATED OUTPUT Z         ###
+    ######################################################
+    sio.on_event('masks', handle_masks)
 
 
     sio.start_background_task(timer_round_0)

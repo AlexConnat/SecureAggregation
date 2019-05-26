@@ -31,7 +31,7 @@ def server_ack(OK, msg):
 
 # @sio.on('your sid')
 def set_sid(sid):
-    print('My sid =', sid)
+    print('My sid =', sid) # TODO: Print while DEBUG --> Not here!
     CLIENT_VALUES['my_sid'] = sid
 
 # @sio.on('connect')
@@ -44,8 +44,19 @@ def disconnect():
 
 # @sio.on('abort')
 def abort(reason):
+    print()
+    print_failure(reason, 'Server')
     sio.disconnect()
 
+# @sio.on('complete')
+def complete(reason):
+    print()
+    print(bcolors.BOLD + bcolors.PURPLE + reason + bcolors.ENDC)
+    # print()
+    # pretty_print(CLIENT_VALUES)
+    # pretty_print(CLIENT_STORAGE)
+    # print()
+    sio.disconnect()
 
 
 ############# ROUND 0 ###############
@@ -53,6 +64,8 @@ def abort(reason):
 #####################################
 
 def round0():
+
+    print(bcolors.BOLD + '\n--- Round 0 ---' + bcolors.ENDC)
 
     # Generate the 2 pair of Diffie-Hellman keys
     # "s" will be used to generate the seed for the shared mask, and "c" the shared encryption key
@@ -81,7 +94,7 @@ def round0():
 ##########################################
 
 def round1_handler(pubkeys):
-    print()
+    print(bcolors.BOLD + '\n--- Round 1 ---' + bcolors.ENDC)
     print_success('Received public keys from server...', CLIENT_VALUES['my_sid'])
     sio.start_background_task(round1, pubkeys)
 
@@ -89,6 +102,8 @@ def round1(pubkeys):
 
     # Store the keys received from the server, in the dictionary CLIENT_STORAGE, for each client_sid
     for client_sid, pubkeys_for_client_sid in pubkeys.items():
+        if client_sid == CLIENT_VALUES['my_sid']:
+            continue # Does not need to store my own keys (already stored in CLIENT_VALUES)
         try:
             CLIENT_STORAGE.setdefault(client_sid, {})['cpk'] = pubkeys_for_client_sid['cpk']
             CLIENT_STORAGE.setdefault(client_sid, {})['spk'] = pubkeys_for_client_sid['spk']
@@ -171,7 +186,7 @@ def round1(pubkeys):
 ##################################
 
 def round2_handler(enc_msgs):
-    print()
+    print(bcolors.BOLD + '\n--- Round 2 ---' + bcolors.ENDC)
     print_success('Received list of encrypted messages for me from server...', CLIENT_VALUES['my_sid'])
     sio.start_background_task(round2, enc_msgs)
     # return True, 'List of encrypted messages succesfully received by client.', CLIENT_VALUES['my_sid'] # TODO: Acknowledgement is confusing in the logs
@@ -217,12 +232,14 @@ def round2(enc_msgs):
     # First the noisy input (the one that the server will aggregate)
     noisy_x = CLIENT_VALUES['x'] + CLIENT_VALUES['a_noise']
 
+    print('NOISY X:', noisy_x)
+
     # Then, add the individual mask
     yy = noisy_x + CLIENT_VALUES['b_mask']
 
     # Finally, add shared mask for every client SIDs smaller than yours, or substract it for client SIDs greater than yours
     all_masks = np.zeros(NB_CLASSES)
-    for client_sid in CLIENT_STORAGE.keys():
+    for client_sid in CLIENT_STORAGE.keys(): # TODO: For client_sid in U@ (like in paper)
         if client_sid == CLIENT_VALUES['my_sid']:
             continue # Skip my own SID
         if not 's_mask' in CLIENT_STORAGE[client_sid].keys():
@@ -240,13 +257,24 @@ def round2(enc_msgs):
 
 
 
-def round3_handler(data):
-    print()
-    pass
-    # sio.start_background_task(round3, data)
+def round3_handler(dropped_out_clients):
+    print(bcolors.BOLD + '\n--- Round 3 ---' + bcolors.ENDC)
+    print_success('Received list of alive clients from server...', CLIENT_VALUES['my_sid'])
+    sio.start_background_task(round3, dropped_out_clients)
 
-def round3(data):
-    pass
+def round3(dropped_out_clients):
+
+    # print('There are ' + str(len(dropped_out_clients)) + ' clients that dropped out last round:')
+    # for client_sid in dropped_out_clients:
+    #     print('• ' + str(client_sid))
+
+    masks = {}
+    masks['b'] = CLIENT_VALUES['b']
+    # data['shares_dropped_out_clients'] = ??? # TODO: Retrieve shares of dropped out clients
+
+    print_info('Sending masks to server...', CLIENT_VALUES['my_sid'])
+    sio.emit('masks', masks, callback=server_ack)
+
 
 
 
@@ -290,6 +318,11 @@ if __name__ == '__main__':
     sio.on('connect', connect)
     sio.on('disconnect', disconnect)
     sio.on('abort', abort)
+
+
+    ###
+    sio.on('complete', complete)
+    ###
 
 
     ############# ROUND 0 ###############
