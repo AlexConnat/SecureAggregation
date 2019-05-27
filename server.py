@@ -9,6 +9,7 @@ from utils import bcolors, pretty_print, print_info, print_success, print_failur
 
 import numpy as np
 
+import os
 
 ###############################
 ## BIG UNKNOWN CONSTANTS TBD ##
@@ -137,8 +138,10 @@ def round0():
     if n0 < 3: # At least 3 clients (n=3, t=2)
         print_failure('Did not receive public keys from enough clients. Abort.', 'Server')
         sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
-        sio.stop()
+        # sio.stop()
         sio.sleep(1)
+        # exit(-1)
+        os._exit(-1)
 
     SERVER_VALUES['n0'] = n0
     SERVER_VALUES['t'] = int(n0/2) + 1
@@ -185,6 +188,7 @@ def round1():
     if n1 < SERVER_VALUES['t']:
         print_failure('Did not receive encrypted messages from enough clients. Abort.', 'Server')
         sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
+        sio.sleep(1)
         sio.stop()
         sio.sleep(1)
 
@@ -341,7 +345,7 @@ if __name__ == '__main__':
 
 
     app = Flask(__name__)
-    sio = SocketIO(app, logger=DO_GLOBAL_LOGGING) # async_mode='eventlet'
+    sio = SocketIO(app, logger=DO_GLOBAL_LOGGING, async_mode='eventlet')
 
 
     sio.on_event('connect', connect)
