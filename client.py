@@ -9,7 +9,8 @@ import numpy as np
 
 import socketio
 
-from secretsharing import SecretSharer
+# from secretsharing import SecretSharer
+from sharing import SecretSharer
 from diffie_hellman import DHKE
 
 
@@ -129,13 +130,13 @@ def round1(pubkeys):
     b_mask = np.random.uniform(-10, 10, NB_CLASSES)                                             #; print('b_mask =', b_mask) # TODO: HOW TO CHOOSE THOSE VALUES???
 
     # Create t-out-of-n shares for my private key my_ssk (as an hex_string)
-    shares_my_ssk = SecretSharer.split_secret(int_to_hex(CLIENT_VALUES['my_ssk']), t, n)  # TODO: Take large prime      #; print('shares_my_ssk =', shares_my_ssk)  # TODO don't use hex strings??? Too short
+    shares_my_ssk = SecretSharer.split_secret(CLIENT_VALUES['my_ssk'], t, n)                    #; print('shares_my_ssk =', shares_my_ssk)  # TODO don't use hex strings??? Too short
 
     # Create t-out-of-n shares for seed a
-    shares_a = SecretSharer.split_secret(int_to_hex(a), t, n)                                   #; print('shares_a =', shares_a) # TODO: Shares size should'nt leak
+    shares_a = SecretSharer.split_secret(a, t, n)                                   #; print('shares_a =', shares_a) # TODO: Shares size should'nt leak
 
     # Create t-out-of-n shares for seed b
-    shares_b = SecretSharer.split_secret(int_to_hex(b), t, n)                                   #; print('shares_b =', shares_b)
+    shares_b = SecretSharer.split_secret(b, t, n)                                   #; print('shares_b =', shares_b)
 
 
     # Store all the previously generated values, in client's dictionary

@@ -309,7 +309,7 @@ def round3():
 
     # TODO: Reconstruct output z
     bigX = np.zeros(NB_CLASSES)
-    for client_sid in U4:
+    for client_sid in U3:
         b_mask_for_sid = np.random.seed(SERVER_STORAGE[client_sid]['b'])
         b_mask = np.random.uniform(-10, 10, NB_CLASSES)
         bigX += (SERVER_STORAGE[client_sid]['y'] - b_mask)
