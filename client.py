@@ -84,7 +84,7 @@ def round0():
 
     # Send the client's public key for "c" and "s" to the server
     print_info('Sending pubkeys to server...', CLIENT_VALUES['my_sid'])
-    sio.emit('pubkeys', {'cpk':my_cpk, 'spk':my_spk}, callback=server_ack)
+    sio.emit('PUB_KEYS', {'cpk':my_cpk, 'spk':my_spk}, callback=server_ack)
 
 
 
@@ -93,6 +93,7 @@ def round0():
 ### GENERATE AND SEND ENCRYPTED SHARES ###
 ##########################################
 
+# @sio.on('ROUND_1')
 def round1_handler(pubkeys):
     print(bcolors.BOLD + '\n--- Round 1 ---' + bcolors.ENDC)
     print_success('Received public keys from server...', CLIENT_VALUES['my_sid'])
@@ -177,7 +178,7 @@ def round1(pubkeys):
         # print('-------------------------')
 
     print_info('Sending list of encrypted messages to server...', CLIENT_VALUES['my_sid'])
-    sio.emit('list encrypted messages', list_encrypted_messages, callback=server_ack)
+    sio.emit('ENC_MSGS', list_encrypted_messages, callback=server_ack)
 
 
 
@@ -185,6 +186,7 @@ def round1(pubkeys):
 ### MASK AND SEND INPUT VECTOR ###
 ##################################
 
+# @sio.on('ROUND_2')
 def round2_handler(enc_msgs):
     print(bcolors.BOLD + '\n--- Round 2 ---' + bcolors.ENDC)
     print_success('Received list of encrypted messages for me from server...', CLIENT_VALUES['my_sid'])
@@ -253,10 +255,15 @@ def round2(enc_msgs):
     y = yy + all_masks
 
     print_info('Sending masked input "y" to server...', CLIENT_VALUES['my_sid'])
-    sio.emit('y', list(y), callback=server_ack) # Send "y" as a python list because numpy arrays are not JSON-serializable
+    sio.emit('INPUT_Y', list(y), callback=server_ack) # Send "y" as a python list because numpy arrays are not JSON-serializable
 
 
 
+################ ROUND 3 ##################
+### SEND MASKS (AND POTENTIALLY SHARES) ###
+###########################################
+
+# @sio.on('ROUND_3')
 def round3_handler(dropped_out_clients):
     print(bcolors.BOLD + '\n--- Round 3 ---' + bcolors.ENDC)
     print_success('Received list of alive clients from server...', CLIENT_VALUES['my_sid'])
@@ -273,7 +280,7 @@ def round3(dropped_out_clients):
     # data['shares_dropped_out_clients'] = ??? # TODO: Retrieve shares of dropped out clients
 
     print_info('Sending masks to server...', CLIENT_VALUES['my_sid'])
-    sio.emit('masks', masks, callback=server_ack)
+    sio.emit('MASKS', masks, callback=server_ack)
 
 
 
@@ -334,14 +341,14 @@ if __name__ == '__main__':
     ###   RECEIVE PUBKEYS FROM EVERYONE,   ###
     ### GENERATE AND SEND ENCRYPTED SHARES ###
     ##########################################
-    sio.on('round1', round1_handler)
+    sio.on('ROUND_1', round1_handler)
 
     ########### ROUND 2 ##############
     ### MASK AND SEND INPUT VECTOR ###
     ##################################
-    sio.on('round2', round2_handler)
+    sio.on('ROUND_2', round2_handler)
 
     ################ ROUND 3 ##################
     ### SEND MASKS (AND POTENTIALLY SHARES) ###
     ###########################################
-    sio.on('round3', round3_handler)
+    sio.on('ROUND_3', round3_handler)
