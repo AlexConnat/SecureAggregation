@@ -68,7 +68,7 @@ def disconnect():
 # @sio.on('PUB_KEYS')
 def handle_pubkeys(data):
     sending_client_sid = request.sid
-    if ROUND != 0:
+    if SERVER_VALUES['ROUND'] != 0:
         print_failure('Too late to send public keys.', sending_client_sid)
         return False, 'Too late to send your public keys.'  # If False, make this node drop (sio.disconnect()) in the client callback
 
@@ -86,9 +86,9 @@ def handle_pubkeys(data):
 # @sio.on('ENC_MSGS')
 def handle_encrypted_messages(encrypted_messages):
     sending_client_sid = request.sid
-    if ROUND != 1:
-        print_failure('Too late to send list of encrypted messages.', sending_client_sid)
-        return False, 'Too late to send your list encrypted messages.'  # If False, make this node drop (sio.disconnect()) in the client callback
+    if SERVER_VALUES['ROUND'] != 1:
+        print_failure(str(ROUND) + 'Too late to send list of encrypted messages.', sending_client_sid)
+        return False, str(ROUND) + 'Too late to send your list encrypted messages.'  # If False, make this node drop (sio.disconnect()) in the client callback
 
     print_success('Received list of encrypted messages.', sending_client_sid)
     SERVER_STORAGE[sending_client_sid]['list_enc_msg'] = encrypted_messages
@@ -99,7 +99,7 @@ def handle_encrypted_messages(encrypted_messages):
 # @sio.on('INPUT_Y')
 def handle_y(y):
     sending_client_sid = request.sid
-    if ROUND != 2:
+    if SERVER_VALUES['ROUND'] != 2:
         print_failure('Too late to send masked input "y".', sending_client_sid)
         return False, 'Too late to send your masked input "y".'  # If False, make this node drop (sio.disconnect()) in the client callback
 
@@ -113,7 +113,7 @@ def handle_y(y):
 # @sio.on('MASKS')
 def handle_masks(masks):
     sending_client_sid = request.sid
-    if ROUND != 3:
+    if SERVER_VALUES['ROUND'] != 3:
         print_failure('Too late to send masks and shares.', sending_client_sid)
         return False, 'Too late to send your mask and shares.'  # If False, make this node drop (sio.disconnect()) in the client callback
 
@@ -142,19 +142,18 @@ def timer_round_0():
     print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_0)
     print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
-    ROUND = 1  # Enter Round1 in the FSM (does not accept pubkeys from clients anymore)
-    round0()   # Process Round0 server logic
+    SERVER_VALUES['ROUND'] = 1  # Enter Round1 in the FSM (does not accept pubkeys from clients anymore)
+    round0()                    # Process Round0 server logic
 
 def round0():
 
-    n0 = len(SERVER_STORAGE.keys())
+    U0 = list(SERVER_STORAGE.keys())
+    n0 = len(U0)
     if n0 < 3: # At least 3 clients (n=3, t=2)
         print_failure('Did not receive public keys from enough clients. Abort.', 'Server')
         sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
-        # sio.stop()
         sio.sleep(1)
-        # exit(-1)
-        os._exit(-1)
+        os._exit(-1) # sio.stop() # FIXME
 
     SERVER_VALUES['n0'] = n0
     SERVER_VALUES['t'] = int(n0/2) + 1
@@ -188,23 +187,27 @@ def timer_round_1():
     print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_1)
     print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
-    ROUND = 2  # Enter Round2 in the FSM (does not accept list of encrypted messages from clients anymore)
-    round1()   # Process Round1 server logic
+    SERVER_VALUES['ROUND'] = 2  # Enter Round2 in the FSM (does not accept list of encrypted messages from clients anymore)
+    round1()                    # Process Round1 server logic
 
 def round1():
 
+    U1 = []
     list_enc_msg_FROM = {}  # Received encrypted messages from these SIDs
     for client_sid in SERVER_STORAGE.keys():
         if 'list_enc_msg' in SERVER_STORAGE[client_sid].keys(): # Should have been set in the handler @sio.on('ENC_MSGS')
             list_enc_msg_FROM[client_sid] = SERVER_STORAGE[client_sid]['list_enc_msg']
+            U1.append(client_sid)
 
     n1 = len(list_enc_msg_FROM.keys())
+    n111 = len(U1)
+    assert n1 == n111
+
     if n1 < SERVER_VALUES['t']:
         print_failure('Did not receive encrypted messages from enough clients. Abort.', 'Server')
         sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
         sio.sleep(1)
-        sio.stop()
-        sio.sleep(1)
+        os._exit(-1) # sio.stop() # FIXME
 
     # Instead of having a dictionary of messages FROM a given client SID, we want to construct
     # a dictionary of messages TO a given client SID.
@@ -236,27 +239,27 @@ def timer_round_2():
     print(bcolors.BOLD + 'Timer Round 2 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_2)
     print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
-    ROUND = 3  # Enter Round3 in the FSM (does not accept masked inputs "y" from clients anymore)
-    round2()   # Process Round2 server logic
+    SERVER_VALUES['ROUND'] = 3  # Enter Round3 in the FSM (does not accept masked inputs "y" from clients anymore)
+    round2()                    # Process Round2 server logic
 
 def round2():
 
-    alive_clients = []
+    U2 = []
     dropped_out_clients = []
     for client_sid in SERVER_STORAGE.keys():
         if 'y' in SERVER_STORAGE[client_sid].keys():
-            alive_clients.append(client_sid)
+            U2.append(client_sid)
         if not 'y' in SERVER_STORAGE[client_sid].keys():
             if 'list_enc_msg' in SERVER_STORAGE[client_sid].keys(): # Only clients from last round! Meaning that we already received their encrypted shares
                 dropped_out_clients.append(client_sid)
 
-    n2 = len(alive_clients) # TODO: Less hacky way to count number of clients that sent "y"?
+    n2 = len(U2) # TODO: Less hacky way to count number of clients that sent "y"?
 
     if n2 < SERVER_VALUES['t']:
         print_failure('Did not receive masked input "y" from enough clients. Abort.', 'Server')
         sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
-        sio.stop()
         sio.sleep(1)
+        os._exit(-1) # sio.stop() # FIXME
 
     print()
     print_info('Advertise list of dropped out clients from the previous round to all still alive clients.', 'Server')
@@ -279,15 +282,14 @@ def timer_round_3():
     print(bcolors.BOLD + 'Timer Round 3 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_2)
     print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
-    ROUND = 4  # Enter Round4 in the FSM (does not accept masks from clients anymore)
-    round3()   # Process Round3 server logic
+    SERVER_VALUES['ROUND'] = 4  # Enter Round4 in the FSM (does not accept masks from clients anymore)
+    round3()                    # Process Round3 server logic
 
 def round3():
 
     U3 = [] # TODO: Coherent notation... round3, U4???
     for client_sid in SERVER_STORAGE.keys():
         if 'b' in SERVER_STORAGE[client_sid].keys():           # TODO: Maybe create sets of client_sids for each users, like described in paper?
-            n3 += 1
             U3.append(client_sid)
 
     n3 = len(U3) # TODO: Less hacky way to count number of messages? # Number of clients still alive at this round
@@ -295,8 +297,8 @@ def round3():
     if n3 < SERVER_VALUES['t']:
         print_failure('Did not receive masks and shares from enough clients. Abort.', 'Server')
         sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
-        sio.stop()
         sio.sleep(1)
+        os._exit(-1) # sio.stop() # FIXME
 
 
 
@@ -324,7 +326,8 @@ def round3():
     print(bigX)
 
     sio.emit('complete', 'Reconstructed output z!')
-    sio.stop()
+    sio.sleep(1)
+    os._exit(0) # sio.stop() # FIXME  # No problem (SUCCESS_CODE 0?)
 
 
 
@@ -357,9 +360,8 @@ if __name__ == '__main__':
     global SERVER_STORAGE
     SERVER_STORAGE = {}
 
-    # Global variable tracking the Round Number --> Finite State Machine Logic
-    global ROUND
-    ROUND = 0
+    # Global variable "ROUND" tracking the Round Number --> Finite State Machine Logic of the server
+    SERVER_VALUES['ROUND'] = 0
 
     app = Flask(__name__)
     sio = SocketIO(app, logger=DO_GLOBAL_LOGGING) # async_mode='eventlet' # recommended
