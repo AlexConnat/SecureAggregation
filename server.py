@@ -17,9 +17,11 @@ import os
 SIGMA = 40
 NB_CLASSES = 5
 
-TIMEOUT_ROUND_0 = 10
-TIMEOUT_ROUND_1 = 5
-TIMEOUT_ROUND_2 = 5
+TIMEOUT_ROUND_0 = 15
+TIMEOUT_ROUND_1 = 10
+TIMEOUT_ROUND_2 = 10
+
+# TODO: FSM (Round Number)
 
 START_TIME = time.time() # TODO: Care about out-of-time messages
 
