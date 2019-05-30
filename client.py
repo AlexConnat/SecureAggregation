@@ -9,9 +9,10 @@ import numpy as np
 
 import socketio
 
-# from secretsharing import SecretSharer
-from sharing import SecretSharer
+from shamir_secret_sharing import SecretSharer
 from diffie_hellman import DHKE
+
+from AES_encryption import AESCipher
 
 
 from utils import bcolors, pretty_print, int_to_hex, print_info, print_success, print_failure
@@ -151,13 +152,10 @@ def round1(pubkeys):
 
 
     list_encrypted_messages = {}
-    # print('-------------------------')
     for ID, client_sid in enumerate(CLIENT_STORAGE.keys()):
 
         if client_sid == CLIENT_VALUES['my_sid']:
             continue # Skip my own sid
-
-        # print(ID, 'For Client', client_sid)
 
         # Derive encryption key enc_key_for_sid (via Diffie-Hellman Agreement)
         enc_key_for_sid = DHKE.agree(CLIENT_VALUES['my_csk'], CLIENT_STORAGE[client_sid]['cpk'])             #; print('enc_key_for_sid =', enc_key_for_sid)
@@ -166,17 +164,16 @@ def round1(pubkeys):
         msg = 'ProtoV1.0' + ' || ' + str(CLIENT_VALUES['my_sid']) + ' || ' + str(client_sid) + ' || ' + str(shares_my_ssk[ID]) + ' || ' + str(shares_a[ID]) + ' || ' + str(shares_b[ID])
 
         # Encrypt the message with the pre-derived shared encryption key
-        # enc_msg = Encrypt(enc_key_for_sid, msg) # TODO: Encrypt AES CBC Mode (KDF from c)
+        enc_msg = AESCipher(str(enc_key_for_sid)).encrypt(msg)
 
         # Store the encrypted messages in a dictionary (keyed by client_sid) that will be sent to the server
-        list_encrypted_messages[client_sid] = msg # TODO: Only send encrypted messages
+        list_encrypted_messages[client_sid] = enc_msg
 
 
         CLIENT_STORAGE[client_sid]['enc_key'] = enc_key_for_sid
         CLIENT_STORAGE[client_sid]['msg'] = msg
-        # CLIENT_STORAGE[client_sid]['enc_msg'] = enc_mask
+        CLIENT_STORAGE[client_sid]['enc_msg'] = enc_msg
 
-        # print('-------------------------')
 
     print_info('Sending list of encrypted messages to server...', CLIENT_VALUES['my_sid'])
     sio.emit('ENC_MSGS', list_encrypted_messages, callback=server_ack)
@@ -198,11 +195,13 @@ def round2(enc_msgs):
 
     for client_sid, enc_msg in enc_msgs.items():
 
-        msg = enc_msg # TODO: Add Decryption function
+        # Decrypt the encrypted message and parse it
+        enc_key_for_sid = CLIENT_STORAGE[client_sid]['enc_key']
+        msg = AESCipher(str(enc_key_for_sid)).decrypt(enc_msg)
 
         msg_parts = msg.split(' || ')
 
-        protocol_id = msg_parts[0] # TODO: What's the use?
+        protocol_id = msg_parts[0] # TODO: What's the use? #TODO: Timestamp?
         from_client_sid = msg_parts[1]
         my_sid = msg_parts[2]
         share_ssk_for_sid = msg_parts[3]
@@ -282,6 +281,7 @@ def round3(dropped_out_clients):
 
     print_info('Sending masks to server...', CLIENT_VALUES['my_sid'])
     sio.emit('MASKS', masks, callback=server_ack)
+
 
 
 

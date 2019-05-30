@@ -301,7 +301,6 @@ def round3():
         os._exit(-1) # sio.stop() # FIXME
 
 
-
     print()
     print(bcolors.BOLD + bcolors.PURPLE + 'Reconstructed output z!!!' + bcolors.ENDC)
 
