@@ -31,10 +31,6 @@ def server_ack(OK, msg):
         print_failure(msg, CLIENT_VALUES['my_sid'])
         sio.disconnect()
 
-# @sio.on('your sid')
-def set_sid(sid):
-    print('My sid =', sid) # TODO: Print while DEBUG --> Not here!
-    CLIENT_VALUES['my_sid'] = sid
 
 # @sio.on('connect')
 def connect():
@@ -59,6 +55,15 @@ def complete(reason):
     # pretty_print(CLIENT_STORAGE)
     # print()
     sio.disconnect()
+
+
+
+# @sio.on('START')
+# def start(classification_task):
+#     print('Task:')
+#     print(classification_task)
+#     sio.start_background_task(round0)
+
 
 
 ############# ROUND 0 ###############
@@ -114,8 +119,8 @@ def round1(pubkeys):
             print_failure('Missing key cpk or spk in server''s messsage.', request.sid)
             sio.disconnect()
 
-    # Compute n, the number of active clients
-    n = len(CLIENT_STORAGE.keys())                                                               #; print('n =', n)
+    # Compute n, the number of active clients (me, included)
+    n = len(CLIENT_STORAGE.keys()) + 1                                                           #; print('n =', n)
 
     # Compute t, the minimum number of clients we need for the aggregation
     t = int(n/2) + 1                                                                             #; print('t =', t)
@@ -130,14 +135,14 @@ def round1(pubkeys):
     np.random.seed(b)
     b_mask = np.random.uniform(-10, 10, NB_CLASSES)                                             #; print('b_mask =', b_mask) # TODO: HOW TO CHOOSE THOSE VALUES???
 
-    # Create t-out-of-n shares for my private key my_ssk (as an hex_string)
-    shares_my_ssk = SecretSharer.split_secret(CLIENT_VALUES['my_ssk'], t, n)                    #; print('shares_my_ssk =', shares_my_ssk)  # TODO don't use hex strings??? Too short
-
     # Create t-out-of-n shares for seed a
     shares_a = SecretSharer.split_secret(a, t, n)                                   #; print('shares_a =', shares_a) # TODO: Shares size should'nt leak
 
     # Create t-out-of-n shares for seed b
     shares_b = SecretSharer.split_secret(b, t, n)                                   #; print('shares_b =', shares_b)
+
+    # Create t-out-of-n shares for my private key my_ssk (as an hex_string)
+    shares_my_ssk = SecretSharer.split_secret(CLIENT_VALUES['my_ssk'], t, n)                    #; print('shares_my_ssk =', shares_my_ssk)  # TODO don't use hex strings??? Too short
 
 
     # Store all the previously generated values, in client's dictionary
@@ -146,9 +151,10 @@ def round1(pubkeys):
     CLIENT_VALUES['a'] = a; CLIENT_VALUES['a_noise'] = a_noise_vector
     CLIENT_VALUES['b'] = b; CLIENT_VALUES['b_mask'] = b_mask
 
-    CLIENT_VALUES['shares_my_ssk'] = shares_my_ssk
     CLIENT_VALUES['shares_a'] = shares_a
     CLIENT_VALUES['shares_b'] = shares_b
+    CLIENT_VALUES['shares_my_ssk'] = shares_my_ssk
+
 
 
     list_encrypted_messages = {}
@@ -239,6 +245,8 @@ def round2(enc_msgs):
     # Then, add the individual mask
     yy = noisy_x + CLIENT_VALUES['b_mask']
 
+    # TODO TODO : Actually use sgn() function like in paper --> Then only add masks
+
     # Finally, add shared mask for every client SIDs smaller than yours, or substract it for client SIDs greater than yours
     all_masks = np.zeros(NB_CLASSES)
     for client_sid in CLIENT_STORAGE.keys(): # TODO: For client_sid in U@ (like in paper)
@@ -266,7 +274,7 @@ def round2(enc_msgs):
 # @sio.on('ROUND_3')
 def round3_handler(dropped_out_clients):
     print(bcolors.BOLD + '\n--- Round 3 ---' + bcolors.ENDC)
-    print_success('Received list of alive clients from server...', CLIENT_VALUES['my_sid'])
+    print_success('Received list of dropped out clients from server...', CLIENT_VALUES['my_sid'])
     sio.start_background_task(round3, dropped_out_clients)
 
 def round3(dropped_out_clients):
@@ -277,11 +285,19 @@ def round3(dropped_out_clients):
 
     masks = {}
     masks['b'] = CLIENT_VALUES['b']
-    # data['shares_dropped_out_clients'] = ??? # TODO: Retrieve shares of dropped out clients
+    masks['shares_dropped_out_clients'] = {}
+
+    for dropped_client_sid in dropped_out_clients:
+        masks['shares_dropped_out_clients'][dropped_client_sid] = CLIENT_STORAGE[dropped_client_sid]['share_ssk']
 
     print_info('Sending masks to server...', CLIENT_VALUES['my_sid'])
     sio.emit('MASKS', masks, callback=server_ack)
 
+    print('MY VALUES:')
+    pretty_print(CLIENT_VALUES)
+
+    print('MY STORAGE:')
+    pretty_print(CLIENT_STORAGE)
 
 
 
@@ -315,11 +331,11 @@ if __name__ == '__main__':
     sio = socketio.Client()
 
     # Connect this client to the server. Upon connection, this client receives a unique socket id "my_sid"
-    # that we store in the CLIENT_VALUES, initially None, set in the function decorated by @sio.on('your sid')
-    CLIENT_VALUES['my_sid'] = None
-    sio.on('your sid', set_sid)
+    # that we store in the CLIENT_VALUES
     sio.connect('http://127.0.0.1:9876') # TODO: Config file
-    sio.sleep(1)
+    CLIENT_VALUES['my_sid'] = sio.eio.sid
+
+    print('My sid =', CLIENT_VALUES['my_sid'])
 
     # "connect" and "disconnect" are 2 special events generated by socketIO upon socket creation
     # and destruction. "abort" is a custom event that we created upon server stopping.
@@ -333,10 +349,14 @@ if __name__ == '__main__':
     ###
 
 
+    # #############
+    # sio.on('START', start) # Wait for instructions
+    # #############
+
     ############# ROUND 0 ###############
     ### GENERATE AND SEND PUBLIC KEYS ###
     #####################################
-    round0()
+    round0() # Trigger round0() in the start function
 
     ############### ROUND 1 ##################
     ###   RECEIVE PUBKEYS FROM EVERYONE,   ###
