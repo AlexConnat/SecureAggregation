@@ -185,7 +185,7 @@ def round0():
 
 def timer_round_1():
     print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
-    sio.sleep(TIMEOUT_ROUND_1)
+    sio.sleep(TIMEOUT_ROUND_1) # TODO: or if receive ALL the clients messages in U0!
     print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 2  # Enter Round2 in the FSM (does not accept list of encrypted messages from clients anymore)
     round1()                    # Process Round1 server logic

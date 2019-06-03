@@ -223,7 +223,7 @@ def round2(enc_msgs):
         s_for_sid = DHKE.agree(CLIENT_VALUES['my_ssk'], CLIENT_STORAGE[client_sid]['spk'])         #; print('s_for_sid =', s_for_sid)
 
         # Derive s_mask from above seed
-        np.random.seed(s_for_sid)
+        np.random.seed(s_for_sid % 2**32) # TODO: Higher entropy than 2**32 (max value to .seed())
         s_mask_for_sid = np.random.uniform(-100, 100, NB_CLASSES)                                  #; print('s_for_sid =', s_for_sid )# TODO: Which values??
 
         # Store also that
@@ -308,7 +308,7 @@ if __name__ == '__main__':
 
     # The params of the group
     global DHKE
-    DHKE = DHKE(groupID=666) # TODO: Use 2048-bit group (id=14) or above
+    DHKE = DHKE(groupID=14) # TODO: Use 2048-bit group (id=14) or above
 
     # The socketIO object representing our client's socket.
     # We can register listeners ('handlers') of events with the function sio.on(<event name>, <handler function>)
