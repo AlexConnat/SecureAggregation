@@ -7,6 +7,9 @@ import time
 
 from utils import bcolors, pretty_print, print_info, print_success, print_failure
 
+from shamir_secret_sharing import SecretSharer
+from diffie_hellman import DHKE
+
 import numpy as np
 
 import os
@@ -57,7 +60,7 @@ def client_ack(OK, msg, client_sid):
 
 # @sio.on('connect')
 def connect(): # also use request.environ???
-    sio.emit('your sid', request.sid, room=request.sid) # We'll use the sid to identify client, we let them know who they are
+    pass
 
 # @sio.on('disconnect')
 def disconnect():
@@ -267,6 +270,9 @@ def round2():
 
     sio.emit('ROUND_3', dropped_out_clients)
 
+    SERVER_VALUES['U2'] = U2
+    SERVER_VALUES['dropped_out_clients'] = dropped_out_clients
+
     sio.start_background_task(timer_round_3)
 
 
@@ -301,25 +307,44 @@ def round3():
         os._exit(-1) # sio.stop() # FIXME
 
 
-
     print()
     print(bcolors.BOLD + bcolors.PURPLE + 'Reconstructed output z!!!' + bcolors.ENDC)
 
     # TODO: recontruct shared masks of missing clients
 
-    # TODO: Reconstruct output z
-    bigX = np.zeros(NB_CLASSES)
-    for client_sid in U3:
-        b_mask_for_sid = np.random.seed(SERVER_STORAGE[client_sid]['b'])
-        b_mask = np.random.uniform(-10, 10, NB_CLASSES)
-        bigX += (SERVER_STORAGE[client_sid]['y'] - b_mask)
+    # # TODO: Reconstruct output z
+    # bigX = np.zeros(NB_CLASSES)
+    # for client_sid in U3:
+    #     b_mask_for_sid = np.random.seed(SERVER_STORAGE[client_sid]['b'])
+    #     b_mask = np.random.uniform(-10, 10, NB_CLASSES)
+    #     bigX += (SERVER_STORAGE[client_sid]['y'] - b_mask)
+    #
+    #
+    # # Recollect shares from dropped out clients
+    # shares_dead = {}
+    # for alive_client_sid in U3:
+    #     for dead_client_sid, share_dead in SERVER_STORAGE[alive_client_sid]['shares_dropped_out_clients'].items():
+    #         shares_dead.setdefault(dead_client_sid, []).append(share_dead)  # TODO: Better logic???
+    #
+    # # Reconstruct the ssk of dropped out clients from the collected shares
+    # ssk_dead = {}
+    # for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
+    #     ssk_for_sid = SecretSharer.recover_secret(shares_dead[dead_client_sid])
+    #     ssk_dead[dead_client_sid] = ssk_for_sid
+    #
+    # # Reconstruct the needed masks from these dropped out clients secret keys
+    # s_mask_dead = {}
+    # for alive_client_sid in U3:
+    #     for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
+    #         s_dead_alive = DHKE.agree(ssk_dead[dead_client_sid], SERVER_STORAGE[alive_client_sid]['spk'])
+    #         np.random.seed(s_dead_alive)
+    #         s_mask_dead_alive = np.random.uniform(-100, 100, NB_CLASSES)
+    #         s_mask_dead.setdefault(dead_client_sid, {})[alive_client_sid] = s_mask_dead_alive  # TODO: Better logic???
+    #
 
-
-    # print()
-    # pretty_print(SERVER_VALUES)
-    # pretty_print(SERVER_STORAGE)
-    # print()
-
+    print()
+    pretty_print(s_mask_dead)
+    print()
 
     print()
     print('BONJOUR A TOUS:')
@@ -350,6 +375,14 @@ def round3():
 
 if __name__ == '__main__':
 
+
+
+    global DHKE
+    DHKE = DHKE(groupID=666) # TODO: Use 2048-bit group (id=14) or above
+
+
+
+
     # This dictionary will contain all the values used by the server
     # to keep track of time, rounds, and number of clients
     global SERVER_VALUES
@@ -374,7 +407,7 @@ if __name__ == '__main__':
     ### RECEIVE PUBLIC KEYS FROM ALL ###
     ###  CLIENTS AND BROADCAST THEM  ###
     ####################################
-    sio.on_event('PUB_KEYS', handle_pubkeys)
+    sio.on_event('PUB_KEYS', handle_pubkeys)   # Should be received at all time!
 
     ################ ROUND 1 #################
     ### RECEIVE LIST OF ENCRYPTED MESSAGES ###
@@ -394,6 +427,14 @@ if __name__ == '__main__':
     ######################################################
     sio.on_event('MASKS', handle_masks)
 
+
+
+    ### TO PUT INTO A BACKGROUND TASK ###
+    # input("Press Spacebar to continue...")
+    # # Block until key pressed
+    # sio.sleep(1)
+    # sio.emit('START', 'Some classification task')
+    ######
 
     sio.start_background_task(timer_round_0)
 
