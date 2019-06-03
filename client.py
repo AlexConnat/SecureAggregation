@@ -136,13 +136,13 @@ def round1(pubkeys):
     b_mask = np.random.uniform(-10, 10, NB_CLASSES)                                             #; print('b_mask =', b_mask) # TODO: HOW TO CHOOSE THOSE VALUES???
 
     # Create t-out-of-n shares for seed a
-    shares_a = SecretSharer.split_secret(a, t, n)                                   #; print('shares_a =', shares_a) # TODO: Shares size should'nt leak
+    shares_a = SecretSharer.split_secret(a, t, n)                                   #; print('shares_a =', shares_a)
 
     # Create t-out-of-n shares for seed b
     shares_b = SecretSharer.split_secret(b, t, n)                                   #; print('shares_b =', shares_b)
 
     # Create t-out-of-n shares for my private key my_ssk (as an hex_string)
-    shares_my_ssk = SecretSharer.split_secret(CLIENT_VALUES['my_ssk'], t, n)                    #; print('shares_my_ssk =', shares_my_ssk)  # TODO don't use hex strings??? Too short
+    shares_my_ssk = SecretSharer.split_secret(CLIENT_VALUES['my_ssk'], t, n)                    #; print('shares_my_ssk =', shares_my_ssk)
 
 
     # Store all the previously generated values, in client's dictionary
@@ -245,19 +245,14 @@ def round2(enc_msgs):
     # Then, add the individual mask
     yy = noisy_x + CLIENT_VALUES['b_mask']
 
-    # TODO TODO : Actually use sgn() function like in paper --> Then only add masks
-
-    # Finally, add shared mask for every client SIDs smaller than yours, or substract it for client SIDs greater than yours
     all_masks = np.zeros(NB_CLASSES)
-    for client_sid in CLIENT_STORAGE.keys(): # TODO: For client_sid in U@ (like in paper)
+    for client_sid in CLIENT_STORAGE.keys():
         if client_sid == CLIENT_VALUES['my_sid']:
             continue # Skip my own SID
         if not 's_mask' in CLIENT_STORAGE[client_sid].keys():
             continue # We did not receive shared mask from this client SID
-        if CLIENT_VALUES['my_sid'] > client_sid:
-            all_masks += CLIENT_STORAGE[client_sid]['s_mask'] # Add the mask of smaller client SIDs
-        else:
-            all_masks -= CLIENT_STORAGE[client_sid]['s_mask'] # Substract the mask of greater client SIDs
+        sgn = np.sign(int(CLIENT_VALUES['my_sid'], 16) - int(client_sid, 16))
+        all_masks += sgn * CLIENT_STORAGE[client_sid]['s_mask'] # Substract the masks of greater client SIDs, or add those of smaller client SIDs
 
     # Here is the final output "y" to send to server
     y = yy + all_masks
