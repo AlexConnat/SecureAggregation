@@ -250,9 +250,10 @@ def round2(enc_msgs):
         if client_sid == CLIENT_VALUES['my_sid']:
             continue # Skip my own SID
         if not 's_mask' in CLIENT_STORAGE[client_sid].keys():
-            continue # We did not receive shared mask from this client SID
-        sgn = np.sign(int(CLIENT_VALUES['my_sid'], 16) - int(client_sid, 16))
-        all_masks += sgn * CLIENT_STORAGE[client_sid]['s_mask'] # Substract the masks of greater client SIDs, or add those of smaller client SIDs
+            print_failure("No shared mask for client", client_sid)
+            continue # We do not have shared mask from this client SID
+        sgn = np.sign(int(CLIENT_VALUES['my_sid'], 16) - int(client_sid, 16))  # Substract the masks of greater client SIDs,
+        all_masks += sgn * CLIENT_STORAGE[client_sid]['s_mask']                # or add those of smaller client SIDs
 
     # Here is the final output "y" to send to server
     y = yy + all_masks
@@ -288,11 +289,11 @@ def round3(dropped_out_clients):
     print_info('Sending masks to server...', CLIENT_VALUES['my_sid'])
     sio.emit('MASKS', masks, callback=server_ack)
 
-    print('MY VALUES:')
-    pretty_print(CLIENT_VALUES)
-
-    print('MY STORAGE:')
-    pretty_print(CLIENT_STORAGE)
+    # print('MY VALUES:')
+    # pretty_print(CLIENT_VALUES)
+    #
+    # print('MY STORAGE:')
+    # pretty_print(CLIENT_STORAGE)
 
 
 

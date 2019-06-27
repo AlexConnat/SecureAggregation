@@ -312,43 +312,43 @@ def round3():
 
     # TODO: recontruct shared masks of missing clients
 
-    # # TODO: Reconstruct output z
-    # bigX = np.zeros(NB_CLASSES)
-    # for client_sid in U3:
-    #     b_mask_for_sid = np.random.seed(SERVER_STORAGE[client_sid]['b'])
-    #     b_mask = np.random.uniform(-10, 10, NB_CLASSES)
-    #     bigX += (SERVER_STORAGE[client_sid]['y'] - b_mask)
-    #
-    #
-    # # Recollect shares from dropped out clients
-    # shares_dead = {}
-    # for alive_client_sid in U3:
-    #     for dead_client_sid, share_dead in SERVER_STORAGE[alive_client_sid]['shares_dropped_out_clients'].items():
-    #         shares_dead.setdefault(dead_client_sid, []).append(share_dead)  # TODO: Better logic???
-    #
-    # # Reconstruct the ssk of dropped out clients from the collected shares
-    # ssk_dead = {}
-    # for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
-    #     ssk_for_sid = SecretSharer.recover_secret(shares_dead[dead_client_sid])
-    #     ssk_dead[dead_client_sid] = ssk_for_sid
-    #
-    # # Reconstruct the needed masks from these dropped out clients secret keys
-    # s_mask_dead = {}
-    # for alive_client_sid in U3:
-    #     for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
-    #         s_dead_alive = DHKE.agree(ssk_dead[dead_client_sid], SERVER_STORAGE[alive_client_sid]['spk'])
-    #         np.random.seed(s_dead_alive)
-    #         s_mask_dead_alive = np.random.uniform(-100, 100, NB_CLASSES)
-    #         s_mask_dead.setdefault(dead_client_sid, {})[alive_client_sid] = s_mask_dead_alive  # TODO: Better logic???
-    #
+    # TODO: Reconstruct output z
+    bigX = np.zeros(NB_CLASSES)
+    for client_sid in U3:
+        b_mask_for_sid = np.random.seed(SERVER_STORAGE[client_sid]['b'])
+        b_mask = np.random.uniform(-10, 10, NB_CLASSES)
+        bigX += (SERVER_STORAGE[client_sid]['y'] - b_mask)
+    print()
+    print('BONJOUR A TOUS:')
+    print(bigX)
+
+    # This bigXX corresponds to the aggregation of all noisy_x of ALIVE clients + the s_masks of DROPPED OUT clients (that did not cancel out)
+
+
+    # Recollect shares from dropped out clients
+    shares_dead = {}
+    for alive_client_sid in U3:
+        for dead_client_sid, share_dead in SERVER_STORAGE[alive_client_sid]['shares_dropped_out_clients'].items():
+            shares_dead.setdefault(dead_client_sid, []).append(share_dead)  # TODO: Better logic???
+
+    # Reconstruct the ssk of dropped out clients from the collected shares
+    ssk_dead = {}
+    for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
+        ssk_for_sid = SecretSharer.recover_secret(shares_dead[dead_client_sid])
+        ssk_dead[dead_client_sid] = ssk_for_sid
+
+    # Reconstruct the needed masks from these dropped out clients secret keys
+    s_mask_dead = {}
+    for alive_client_sid in U3:
+        for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
+            s_dead_alive = DHKE.agree(ssk_dead[dead_client_sid], SERVER_STORAGE[alive_client_sid]['spk'])
+            np.random.seed(s_dead_alive)
+            s_mask_dead_alive = np.random.uniform(-100, 100, NB_CLASSES)
+            s_mask_dead.setdefault(dead_client_sid, {})[alive_client_sid] = s_mask_dead_alive  # TODO: Better logic???
 
     print()
     pretty_print(s_mask_dead)
     print()
-
-    print()
-    print('BONJOUR A TOUS:')
-    print(bigX)
 
     sio.emit('complete', 'Reconstructed output z!')
     sio.sleep(1)
@@ -378,7 +378,7 @@ if __name__ == '__main__':
 
 
     global DHKE
-    DHKE = DHKE(groupID=666) # TODO: Use 2048-bit group (id=14) or above
+    DHKE = DHKE(groupID=14) # TODO: Use 2048-bit group (id=14) or above
 
 
 
