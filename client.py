@@ -18,6 +18,10 @@ from AES_encryption import AESCipher
 from utils import bcolors, pretty_print, int_to_hex, print_info, print_success, print_failure
 
 
+UNIFORM_B_BOUNDS = 10
+UNIFORM_S_BOUNDS = 100
+
+
 #############################################################################################
 # Handlers should be short (https://github.com/miguelgrinberg/Flask-SocketIO/issues/597)
 # If big CPU work, use async_handlers = True, or just start_background_task
@@ -133,7 +137,7 @@ def round1(pubkeys):
     # Draw random seed b, and make a mask out of it
     b = secrets.randbits(32)                                                                    #; print('b =', b)
     np.random.seed(b)
-    b_mask = np.random.uniform(-10, 10, NB_CLASSES)                                             #; print('b_mask =', b_mask) # TODO: HOW TO CHOOSE THOSE VALUES???
+    b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)                                             #; print('b_mask =', b_mask) # TODO: HOW TO CHOOSE THOSE VALUES???
 
     # Create t-out-of-n shares for seed a
     shares_a = SecretSharer.split_secret(a, t, n)                                   #; print('shares_a =', shares_a)
@@ -228,8 +232,8 @@ def round2(enc_msgs):
         s_for_sid = DHKE.agree(CLIENT_VALUES['my_ssk'], CLIENT_STORAGE[client_sid]['spk'])         #; print('s_for_sid =', s_for_sid)
 
         # Derive s_mask from above seed
-        np.random.seed(s_for_sid % 2**32) # TODO: Higher entropy than 2**32 (max value to .seed())
-        s_mask_for_sid = np.random.uniform(-100, 100, NB_CLASSES)                                  #; print('s_for_sid =', s_for_sid )# TODO: Which values??
+        np.random.seed(s_for_sid % 2**32) # TODO: Higher entropy than 2**32??? (max value to .seed())
+        s_mask_for_sid = np.random.uniform(-UNIFORM_S_BOUNDS, UNIFORM_S_BOUNDS, NB_CLASSES)                                  #; print('s_for_sid =', s_for_sid )# TODO: Which values??
 
         # Store also that
         CLIENT_STORAGE[client_sid]['s'] = s_for_sid
