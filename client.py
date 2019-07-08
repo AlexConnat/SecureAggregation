@@ -89,8 +89,17 @@ def round0():
 
     # Load the secret input "x". We want to aggregate a noisy version of x
     # The added noise will be generated later on
-    CLIENT_VALUES['x'] = np.zeros(NB_CLASSES) # TODO: Load a REAL votes array!
-    CLIENT_VALUES['x'][int(time.time()) % NB_CLASSES] = 1 # one-hot-encoded vector
+
+    import sys
+    assert len(sys.argv) >= 2
+    filename = sys.argv[1]
+    with open(filename, 'r') as f:
+        votes = list( map(int, f.read().split('\n')[0].split(',')) )
+
+    # CLIENT_VALUES['x'] = np.zeros(NB_CLASSES) # TODO: Load a REAL votes array!
+    # CLIENT_VALUES['x'][int(time.time()) % NB_CLASSES] = 1 # one-hot-encoded vector
+
+    CLIENT_VALUES['x'] = votes
     print('My secret x =', CLIENT_VALUES['x'])
 
     # Send the client's public key for "c" and "s" to the server
@@ -305,7 +314,7 @@ def round3(dropped_out_clients):
 ###############################
 ## BIG UNKNOWN CONSTANTS TBD ##
 ###############################
-SIGMA = 40
+SIGMA = 20
 NB_CLASSES = 5
 ###############################
 

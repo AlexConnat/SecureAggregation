@@ -17,14 +17,16 @@ import os
 ###############################
 ## BIG UNKNOWN CONSTANTS TBD ##
 ###############################
-SIGMA = 40
+SIGMA = 20
 NB_CLASSES = 5
 
 TIMEOUT_ROUND_0 = 15
 TIMEOUT_ROUND_1 = 10
 TIMEOUT_ROUND_2 = 10
-# TODO: When all clients in previous round are received: skip the timeout
 
+
+UNIFORM_B_BOUNDS = 10
+UNIFORM_S_BOUNDS = 100
 
 
 START_TIME = time.time() # TODO: Care about out-of-time messages
@@ -42,19 +44,12 @@ DO_GLOBAL_LOGGING = False
 ################################################################################
 
 
-# TODO: never used...
-def client_ack(OK, msg, client_sid):
-    if OK:
-        print_success(msg, client_sid)
-    else:
-        print_failure(msg, client_sid)
-        sio.disconnect()
 
 
 
 #############################################################################################
 # Handlers should be short (https://github.com/miguelgrinberg/Flask-SocketIO/issues/597)
-# If big CPU work, use async_handlers = True, or just start_background_task
+# If big CPU work, use async_handlers = True, or just sio.start_background_task( function )
 #############################################################################################
 
 
@@ -65,54 +60,101 @@ def connect(): # also use request.environ???
 # @sio.on('disconnect')
 def disconnect():
     pass
-    # print('Bye', request.sid)
 
 
 # @sio.on('PUB_KEYS')
 def handle_pubkeys(data):
     sending_client_sid = request.sid
+
+    # Check in which round the FSM is
     if SERVER_VALUES['ROUND'] != 0:
         print_failure('Too late to send public keys.', sending_client_sid)
-        return False, 'Too late to send your public keys.'  # If False, make this node drop (sio.disconnect()) in the client callback
+        return False, 'Too late to send your public keys.' # If False, make this node drop (sio.disconnect()) in the client callback
 
-    print_success('Received public keys.', sending_client_sid)
-    SERVER_VALUES['U0'].append(sending_client_sid)
+    # Add public key cpk to Server Storage for this client SID
     try:
         SERVER_STORAGE.setdefault(sending_client_sid, {})['cpk'] = data['cpk']
+    except:
+        print_failure('Missing key cpk in client''s messsage.', sending_client_sid)
+        return False, 'Missing key cpk in your message.'
+
+    # Add public key spk to Server Storage for this client SID
+    try:
         SERVER_STORAGE.setdefault(sending_client_sid, {})['spk'] = data['spk']
     except:
-        print_failure('Missing key cpk or spk in client''s messsage.', sending_client_sid)
-        return False, 'Missing key cpk or spk in your message.'
+        print_failure('Missing key spk in client''s messsage.', sending_client_sid)
+        return False, 'Missing key spk in your message.'
 
-    return True, 'Public keys succesfully received by server.' # acknowledgement message that everything went fine
+    # Logging message
+    print_success('Received public keys.', sending_client_sid)
+
+    # Add this client SID in the list of active clients at round 0
+    SERVER_VALUES['U0'].append(sending_client_sid)
+
+    # Acknowledgement message (to the client) that everything went fine
+    return True, 'Public keys succesfully received by server.'
 
 
 # @sio.on('ENC_MSGS')
 def handle_encrypted_messages(encrypted_messages):
     sending_client_sid = request.sid
+
+    # Check in which round the FSM is
     if SERVER_VALUES['ROUND'] != 1:
         print_failure(str(ROUND) + 'Too late to send list of encrypted messages.', sending_client_sid)
-        return False, str(ROUND) + 'Too late to send your list encrypted messages.'  # If False, make this node drop (sio.disconnect()) in the client callback
+        return False, str(ROUND) + 'Too late to send your list encrypted messages.' # If False, make this node drop (sio.disconnect()) in the client callback
 
-    print_success('Received list of encrypted messages.', sending_client_sid)
-    SERVER_VALUES['U1'].append(sending_client_sid)
+    # TODO: Verify assumptions about this list
+    # Add the list of encrypted messages from this client SID to the Server Storage
+    ##########################################
     SERVER_STORAGE[sending_client_sid]['list_enc_msg'] = encrypted_messages
+    #############################################
 
+    # Logging message
+    print_success('Received list of encrypted messages.', sending_client_sid)
+
+    # Add this client SID in the list of active clients at round 1
+    SERVER_VALUES['U1'].append(sending_client_sid)
+
+    # # No clients from last round have dropped out, and this is the last client we're receiving the list of encrypted messages from
+    # if set(SERVER_VALUES['U1']) == set(SERVER_VALUES['U0']):
+    #     goto_next_round()
+    #     SERVER_VALUES['ROUND'] = 2           # Enter Round2 in the FSM (hence, does not accept list of encrypted messages from clients anymore)
+    #     sio.sleep(3)
+    #     sio.start_background_task(round1())  # Proceed directly to Round1 server-side logic
+
+    # Acknowledgement message (to the client) that everything went fine
     return True, 'List of encrypted messages succesfully received by server.'
 
 
 # @sio.on('INPUT_Y')
 def handle_y(y):
     sending_client_sid = request.sid
+
+    # Check in which round the FSM is
     if SERVER_VALUES['ROUND'] != 2:
         print_failure('Too late to send masked input "y".', sending_client_sid)
         return False, 'Too late to send your masked input "y".'  # If False, make this node drop (sio.disconnect()) in the client callback
 
+    # TODO: Verify assumptions about this y (format etc...)
+    # Add the masked input y from this client SID to the Server Storage
+    ############################################################
+    SERVER_STORAGE[sending_client_sid]['y'] = y
+    ############################################################
+
+    # Logging message
     print_success('Received masked input "y".', request.sid)
+
+    # Add this client SID in the list of active clients at round 2
     SERVER_VALUES['U2'].append(sending_client_sid)
 
-    SERVER_STORAGE[sending_client_sid]['y'] = y # TODO: Check if 'y' is present (correct format, etc...?)
+    # # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
+    # if set(SERVER_VALUES['U2']) == set(SERVER_VALUES['U1']):
+    #     SERVER_VALUES['ROUND'] = 3           # Enter Round3 in the FSM (hence, does not accept masked inputs y from clients anymore)
+    #     # sio.sleep(3)
+    #     sio.start_background_task(round2())  # Proceed directly to Round2 server-side logic
 
+    # Acknowledgement message (to the client) that everything went fine
     return True, 'Masked input "y" succesfully received by server.'
 
 
@@ -120,10 +162,15 @@ def handle_y(y):
 # @sio.on('MASKS')
 def handle_masks(masks):
     sending_client_sid = request.sid
+
+    # Check in which round the FSM is
     if SERVER_VALUES['ROUND'] != 3:
         print_failure('Too late to send masks and shares.', sending_client_sid)
         return False, 'Too late to send your mask and shares.'  # If False, make this node drop (sio.disconnect()) in the client callback
 
+    # TODO: Verify assumptions about this y (format etc...)
+    # Add the masks from this client SID to the Server Storage
+    ######################################################################################################################
     if 'b' in masks.keys():
         SERVER_STORAGE[sending_client_sid]['b'] = masks['b']
     else:
@@ -132,9 +179,19 @@ def handle_masks(masks):
 
     if 'shares_dropped_out_clients' in masks.keys():
         SERVER_STORAGE[sending_client_sid]['shares_dropped_out_clients'] = masks['shares_dropped_out_clients']
+    ######################################################################################################################
 
+    # Logging message
     print_success('Received mask "b" and shares from dropped out clients.', request.sid)
+
+    # Add this client SID in the list of active clients at round 3
     SERVER_VALUES['U3'].append(sending_client_sid)
+
+    # # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
+    # if set(SERVER_VALUES['U3']) == set(SERVER_VALUES['U2']):
+    #     SERVER_VALUES['ROUND'] = 4           # Enter Round4 in the FSM (hence, does not accept list of blinding values from clients anymore)
+    #     # sio.sleep(3)
+    #     sio.start_background_task(round3())  # Proceed directly to Round3 server-side logic
 
     return True, 'Masks succesfully received by server.'
 
@@ -149,10 +206,15 @@ def handle_masks(masks):
 def timer_round_0():
     SERVER_VALUES['U0'] = []
     print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
-    sio.sleep(TIMEOUT_ROUND_0)
-    print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
-    SERVER_VALUES['ROUND'] = 1  # Enter Round1 in the FSM (does not accept pubkeys from clients anymore)
-    round0()                    # Process Round0 server logic
+    sio.sleep(TIMEOUT_ROUND_0) # Thhe execution of THIS function will be hang here for TIMEOUT_ROUND_0 seconds
+
+    # We're still at round 0, meaning that the timeout occurs before having received
+    # the public keys from all clients
+    if SERVER_VALUES['ROUND'] < 1:
+        print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
+        SERVER_VALUES['ROUND'] = 1
+        round0()
+
 
 def round0():
 
@@ -192,13 +254,17 @@ def round0():
 def timer_round_1():
     SERVER_VALUES['U1'] = []
     print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
-    sio.sleep(TIMEOUT_ROUND_1) # TODO: or if receive ALL the clients messages in U0!
-    print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
-    SERVER_VALUES['ROUND'] = 2  # Enter Round2 in the FSM (does not accept list of encrypted messages from clients anymore)
-    round1()                    # Process Round1 server logic
+    sio.sleep(TIMEOUT_ROUND_1)
+
+    # We're still at round 1, and the timeout occurs before having received the list
+    # of encrypted messages from all clients of last round
+    if SERVER_VALUES['ROUND'] < 2:
+        print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
+        SERVER_VALUES['ROUND'] = 2  # Enter round 2 in the FSM
+        round1()                    # Process round 1 server logic
+
 
 def round1():
-
     U1 = SERVER_VALUES['U1']
     n1 = len(U1)
     if n1 < SERVER_VALUES['t']:
@@ -207,12 +273,24 @@ def round1():
         sio.sleep(1)
         os._exit(-1) # sio.stop() # FIXME
 
+
+    # TODO: Compute set of dropped_out_clients:
+    #     SERVER_VALUES['dropped_out_clients_ROUND_1'] = list( set(SERVER_VALUES['U0']) - set(SERVER_VALUES['U1']) )
+    #     if SERVER_VALUES['dropped_out_clients_ROUND_1']:
+    #         print('Clients dropped at Round 1:')
+    #         for client_sid in SERVER_VALUES['dropped_out_clients_ROUND_1']:
+    #             print('- ' + str(client_sid))
+
+
+
     # Instead of having a dictionary of messages FROM a given client SID, we want to construct
     # a dictionary of messages TO a given client SID.
     list_enc_msg_FROM = {}
     for client_sid in U1:
         list_enc_msg_FROM[client_sid] = SERVER_STORAGE[client_sid]['list_enc_msg']
 
+    # This is here that we reverse the "FROM key TO value" dict to a "FROM value TO key" dict
+    # e.g: {1: {2:a, 3:b, 4:c}, 3: {1:d,2:e,4:f}, 4: {1:g,2:h,3:i}}  -->  {1: {3:d, 4:g}, 3:{1:b, 4:i}, 4: {1:c,3:f} }
     list_enc_msg_TO = {}
     for from_client_sid, enc_msg_from_client_sid in list_enc_msg_FROM.items():
         for to_client_sid, enc_msg_to_client_sid in enc_msg_from_client_sid.items():
@@ -224,7 +302,7 @@ def round1():
     print()
 
     for client_sid in U1:
-        sio.emit('ROUND_2', list_enc_msg_TO[client_sid], room=client_sid) # callback=client_ack # TODO: Acknowledgement is confusing in the logs
+        sio.emit('ROUND_2', list_enc_msg_TO[client_sid], room=client_sid)
 
     sio.start_background_task(timer_round_2)
 
@@ -244,6 +322,13 @@ def timer_round_2():
     print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 3  # Enter Round3 in the FSM (does not accept masked inputs "y" from clients anymore)
     round2()                    # Process Round2 server logic
+
+    # # If the timeout occurs before we gathered ??? from all clients of previous round:
+    # if SERVER_VALUES['ROUND'] < 3:
+    #     print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
+    #     SERVER_VALUES['ROUND'] = 3
+    #     round2()
+
 
 def round2():
 
@@ -285,6 +370,13 @@ def timer_round_3():
     SERVER_VALUES['ROUND'] = 4  # Enter Round4 in the FSM (does not accept masks from clients anymore)
     round3()                    # Process Round3 server logic
 
+    # # If the timeout occurs before we gathered ??? from all clients of previous round:
+    # if SERVER_VALUES['ROUND'] < 4:
+    #     print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
+    #     SERVER_VALUES['ROUND'] = 4
+    #     round3()
+
+
 def round3():
 
     U3 = SERVER_VALUES['U3']
@@ -305,7 +397,7 @@ def round3():
     bigX = np.zeros(NB_CLASSES)
     for client_sid in U3:
         b_mask_for_sid = np.random.seed(SERVER_STORAGE[client_sid]['b'])
-        b_mask = np.random.uniform(-10, 10, NB_CLASSES)
+        b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)
         bigX += (SERVER_STORAGE[client_sid]['y'] - b_mask)
     print()
     print('Reconstructed Z:')
@@ -332,7 +424,7 @@ def round3():
         for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
             s_dead_alive = DHKE.agree(ssk_dead[dead_client_sid], SERVER_STORAGE[alive_client_sid]['spk'])
             np.random.seed(s_dead_alive)
-            s_mask_dead_alive = np.random.uniform(-100, 100, NB_CLASSES)
+            s_mask_dead_alive = np.random.uniform(-UNIFORM_S_BOUNDS, UNIFORM_S_BOUNDS, NB_CLASSES)
             s_mask_dead.setdefault(dead_client_sid, {})[alive_client_sid] = s_mask_dead_alive  # TODO: Better logic???
 
     print()
@@ -367,7 +459,7 @@ if __name__ == '__main__':
 
 
     global DHKE
-    DHKE = DHKE(groupID=14) # TODO: Use 2048-bit group (id=14) or above
+    DHKE = DHKE(groupID=14)
 
 
 
@@ -396,7 +488,7 @@ if __name__ == '__main__':
     ### RECEIVE PUBLIC KEYS FROM ALL ###
     ###  CLIENTS AND BROADCAST THEM  ###
     ####################################
-    sio.on_event('PUB_KEYS', handle_pubkeys)   # Should be received at all time!
+    sio.on_event('PUB_KEYS', handle_pubkeys)   # TODO: Should be received and stored at all time!?
 
     ################ ROUND 1 #################
     ### RECEIVE LIST OF ENCRYPTED MESSAGES ###
