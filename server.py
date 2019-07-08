@@ -17,12 +17,12 @@ import os
 ###############################
 ## BIG UNKNOWN CONSTANTS TBD ##
 ###############################
-SIGMA = 20
+SIGMA = 3
 NB_CLASSES = 5
 
-TIMEOUT_ROUND_0 = 15
-TIMEOUT_ROUND_1 = 10
-TIMEOUT_ROUND_2 = 10
+TIMEOUT_ROUND_0 = 10
+TIMEOUT_ROUND_1 = 5
+TIMEOUT_ROUND_2 = 5
 
 
 UNIFORM_B_BOUNDS = 10
@@ -159,30 +159,33 @@ def handle_y(y):
 
 
 
-# @sio.on('MASKS')
-def handle_masks(masks):
+# @sio.on('SHARES')
+def handle_shares(shares):
     sending_client_sid = request.sid
 
     # Check in which round the FSM is
     if SERVER_VALUES['ROUND'] != 3:
-        print_failure('Too late to send masks and shares.', sending_client_sid)
+        print_failure('Too late to send final shares.', sending_client_sid)
         return False, 'Too late to send your mask and shares.'  # If False, make this node drop (sio.disconnect()) in the client callback
 
     # TODO: Verify assumptions about this y (format etc...)
-    # Add the masks from this client SID to the Server Storage
-    ######################################################################################################################
-    if 'b' in masks.keys():
-        SERVER_STORAGE[sending_client_sid]['b'] = masks['b']
-    else:
-        print_failure('Missing mask "b" in client''s messsage.', sending_client_sid) # TODO: Should we assume that it always have it?
-        return False, 'Missing mask "b" in your message.'
-
-    if 'shares_dropped_out_clients' in masks.keys():
-        SERVER_STORAGE[sending_client_sid]['shares_dropped_out_clients'] = masks['shares_dropped_out_clients']
-    ######################################################################################################################
+    # Add the shares from this client SID to the Server Storage
+    SERVER_STORAGE[sending_client_sid]['b_shares_alive'] = shares['b_shares_alive']
+    SERVER_STORAGE[sending_client_sid]['ssk_shares_dropped'] = shares['ssk_shares_dropped']
+    ####################################################################################
+    # b_shares = shares['b_shares_alive']
+    # ssk_shares = shares['ssk_shares_dropped']
+    # print(bcolors.BOLD + "For alive clients, I received:" + bcolors.ENDC)
+    # for alive_client in SERVER_VALUES['U2']:
+    #     print(alive_client, '-->', b_shares[alive_client])
+    # print()
+    # print(bcolors.BOLD + "For dropped out clients, I received:" + bcolors.ENDC)
+    # for dropped_out_client in SERVER_VALUES['dropped_out_clients_round_2']:
+    #     print(dropped_out_client, '-->', ssk_shares[dropped_out_client])
+    #####################################################################################
 
     # Logging message
-    print_success('Received mask "b" and shares from dropped out clients.', request.sid)
+    print_success('Received share of mask "b" for alive clients and share of key "ssk" for dropped out clients.', request.sid)
 
     # Add this client SID in the list of active clients at round 3
     SERVER_VALUES['U3'].append(sending_client_sid)
@@ -193,7 +196,7 @@ def handle_masks(masks):
     #     # sio.sleep(3)
     #     sio.start_background_task(round3())  # Proceed directly to Round3 server-side logic
 
-    return True, 'Masks succesfully received by server.'
+    return True, 'Shares succesfully received by server.'
 
 
 
@@ -206,14 +209,17 @@ def handle_masks(masks):
 def timer_round_0():
     SERVER_VALUES['U0'] = []
     print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
-    sio.sleep(TIMEOUT_ROUND_0) # Thhe execution of THIS function will be hang here for TIMEOUT_ROUND_0 seconds
+    sio.sleep(TIMEOUT_ROUND_0) # The execution of THIS function will be hang here for TIMEOUT_ROUND_0 seconds
+    print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
+    SERVER_VALUES['ROUND'] = 1
+    round0()
 
-    # We're still at round 0, meaning that the timeout occurs before having received
-    # the public keys from all clients
-    if SERVER_VALUES['ROUND'] < 1:
-        print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
-        SERVER_VALUES['ROUND'] = 1
-        round0()
+    # # We're still at round 0, meaning that the timeout occurs before having received
+    # # the public keys from all clients
+    # if SERVER_VALUES['ROUND'] < 1:
+    #     print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
+    #     SERVER_VALUES['ROUND'] = 1
+    #     round0()
 
 
 def round0():
@@ -255,13 +261,16 @@ def timer_round_1():
     SERVER_VALUES['U1'] = []
     print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_1)
+    print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
+    SERVER_VALUES['ROUND'] = 2  # Enter round 2 in the FSM
+    round1()                    # Process round 1 server logic
 
-    # We're still at round 1, and the timeout occurs before having received the list
-    # of encrypted messages from all clients of last round
-    if SERVER_VALUES['ROUND'] < 2:
-        print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
-        SERVER_VALUES['ROUND'] = 2  # Enter round 2 in the FSM
-        round1()                    # Process round 1 server logic
+    # # We're still at round 1, and the timeout occurs before having received the list
+    # # of encrypted messages from all clients of last round
+    # if SERVER_VALUES['ROUND'] < 2:
+    #     print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
+    #     SERVER_VALUES['ROUND'] = 2  # Enter round 2 in the FSM
+    #     round1()                    # Process round 1 server logic
 
 
 def round1():
@@ -273,15 +282,9 @@ def round1():
         sio.sleep(1)
         os._exit(-1) # sio.stop() # FIXME
 
-
-    # TODO: Compute set of dropped_out_clients:
-    #     SERVER_VALUES['dropped_out_clients_ROUND_1'] = list( set(SERVER_VALUES['U0']) - set(SERVER_VALUES['U1']) )
-    #     if SERVER_VALUES['dropped_out_clients_ROUND_1']:
-    #         print('Clients dropped at Round 1:')
-    #         for client_sid in SERVER_VALUES['dropped_out_clients_ROUND_1']:
-    #             print('- ' + str(client_sid))
-
-
+    # The "dropped out clients" are all the clients sid that were present in the set U0 but not in U1
+    dropped_out_clients = list( set(SERVER_VALUES['U0']) - set(U1) )
+    SERVER_VALUES['dropped_out_clients_round_1'] = dropped_out_clients
 
     # Instead of having a dictionary of messages FROM a given client SID, we want to construct
     # a dictionary of messages TO a given client SID.
@@ -342,13 +345,13 @@ def round2():
 
     # The "dropped out clients" are all the clients sid that were present in the set U1 but not in U2
     dropped_out_clients = list( set(SERVER_VALUES['U1']) - set(U2) )
-    SERVER_VALUES['dropped_out_clients'] = dropped_out_clients
+    SERVER_VALUES['dropped_out_clients_round_2'] = dropped_out_clients
 
     print()
-    print_info('Advertise list of dropped out clients from the previous round to all still alive clients.', 'Server')
+    print_info('Advertise list of alive and dropped out clients from the previous round to all still alive clients.', 'Server')
     print()
 
-    sio.emit('ROUND_3', dropped_out_clients)
+    sio.emit('ROUND_3', {'dropped_out': dropped_out_clients, 'alive': U2})
 
 
     sio.start_background_task(timer_round_3)
@@ -387,49 +390,106 @@ def round3():
         sio.sleep(1)
         os._exit(-1) # sio.stop() # FIXME
 
-
-    print()
-    print(bcolors.BOLD + bcolors.PURPLE + 'Reconstructed output z!!!' + bcolors.ENDC)
-
-    # TODO: recontruct shared masks of missing clients
-
-    # TODO: Reconstruct output z
-    bigX = np.zeros(NB_CLASSES)
-    for client_sid in U3:
-        b_mask_for_sid = np.random.seed(SERVER_STORAGE[client_sid]['b'])
-        b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)
-        bigX += (SERVER_STORAGE[client_sid]['y'] - b_mask)
-    print()
-    print('Reconstructed Z:')
-    print(bigX)
-
-    # This bigXX corresponds to the aggregation of all noisy_x of ALIVE clients + the s_masks of DROPPED OUT clients (that did not cancel out)
+    # The "dropped out clients" are all the clients sid that were present in the set U0 but not in U1
+    dropped_out_clients = list( set(SERVER_VALUES['U2']) - set(U3) )
+    SERVER_VALUES['dropped_out_clients_round_3'] = dropped_out_clients
 
 
-    # Recollect shares from dropped out clients
-    shares_dead = {}
-    for alive_client_sid in U3:
-        for dead_client_sid, share_dead in SERVER_STORAGE[alive_client_sid]['shares_dropped_out_clients'].items():
-            shares_dead.setdefault(dead_client_sid, []).append(share_dead)  # TODO: Better logic???
+    # print("WELCOME TO ROUND3:")
+    # print("who is alive?", U3)
+    # print("who is dead?", dropped_out_clients)
+    # print("who was dead last round?", SERVER_VALUES['dropped_out_clients_round_2'])
 
-    # Reconstruct the ssk of dropped out clients from the collected shares
-    ssk_dead = {}
-    for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
-        ssk_for_sid = SecretSharer.recover_secret(shares_dead[dead_client_sid])
-        ssk_dead[dead_client_sid] = ssk_for_sid
 
-    # Reconstruct the needed masks from these dropped out clients secret keys
-    s_mask_dead = {}
-    for alive_client_sid in U3:
-        for dead_client_sid in SERVER_VALUES['dropped_out_clients']:
-            s_dead_alive = DHKE.agree(ssk_dead[dead_client_sid], SERVER_STORAGE[alive_client_sid]['spk'])
-            np.random.seed(s_dead_alive)
-            s_mask_dead_alive = np.random.uniform(-UNIFORM_S_BOUNDS, UNIFORM_S_BOUNDS, NB_CLASSES)
-            s_mask_dead.setdefault(dead_client_sid, {})[alive_client_sid] = s_mask_dead_alive  # TODO: Better logic???
+    # No users dropped out at Round2, so we can just reconstruct z normally
+    if SERVER_VALUES['dropped_out_clients_round_2'] == []:
 
-    print()
-    pretty_print(s_mask_dead)
-    print()
+        # Retrieve the shares of "b" from all alive clients
+        all_b_shares = []
+        for client_sid in U3:
+            all_b_shares.append(SERVER_STORAGE[client_sid]['b_shares_alive'])
+
+        b_shares_for_sid = {
+            k: [d.get(k) for d in all_b_shares]
+            for k in set().union(*all_b_shares)
+        }
+
+        # Reconstruct "b" from its shares
+        b_for_sid = {}
+        for client_sid in U3:
+            b = SecretSharer.recover_secret(  b_shares_for_sid[client_sid] )
+            b_for_sid[client_sid] = b
+
+        # Remove b from the y that we received from clients, and aggregate the whole
+        Z = 0
+        for client_sid in U3:
+            b = b_for_sid[client_sid]
+            np.random.seed(b)
+            b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)
+            Z += (SERVER_STORAGE[client_sid]['y'] - b_mask)
+
+        print('\nZ = ', Z)
+
+    # Some users dropped out at Round2, so we have to reconstruct their blinding values using their ssk, to then reconstruct z
+    else:
+
+        # Retrieve the shares of "b" from all alive clients
+        all_b_shares = []
+        for client_sid in U3:
+            all_b_shares.append(SERVER_STORAGE[client_sid]['b_shares_alive'])
+
+        b_shares_for_sid = {
+            k: [d.get(k) for d in all_b_shares]
+            for k in set().union(*all_b_shares)
+        }
+
+        # Reconstruct "b" from its shares
+        b_for_sid = {}
+        for client_sid in U3:
+            b = SecretSharer.recover_secret(  b_shares_for_sid[client_sid] )
+            b_for_sid[client_sid] = b
+
+        # Retrieve the shares of "ssk" of dropped out clients from all alive clients
+        all_ssk_shares = []
+        for client_sid in U3:
+            all_ssk_shares.append(SERVER_STORAGE[client_sid]['ssk_shares_dropped'])
+
+        ssk_shares_for_sid = {
+            k: [d.get(k) for d in all_ssk_shares]
+            for k in set().union(*all_ssk_shares)
+        }
+
+        # Reconstruct ssk from its shares
+        ssk_for_sid = {}
+        for client_sid in SERVER_VALUES['dropped_out_clients_round_2']:
+            ssk = SecretSharer.recover_secret( ssk_shares_for_sid[client_sid] )
+            ssk_for_sid[client_sid] = ssk
+
+        # Remove b from the y that we received from clients, and aggregate the whole
+        Z_partial = 0
+        for client_sid in U3:
+            b = b_for_sid[client_sid]
+            np.random.seed(b)
+            b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)
+            Z_partial += (SERVER_STORAGE[client_sid]['y'] - b_mask)
+
+        # print('\nZ_partial = ', Z_partial)
+
+        # Reconstruct all blinding values (s_masks) for all pairs of alive users with the dropped out users
+        all_masks = np.zeros(NB_CLASSES)
+        for dropped_client_sid in SERVER_VALUES['dropped_out_clients_round_2']:
+            for alive_client_sid in U3:
+                s_for_sid = DHKE.agree(ssk_for_sid[dropped_client_sid], SERVER_STORAGE[alive_client_sid]['spk'])
+                np.random.seed(s_for_sid % 2**32)
+                s_mask_for_sid = np.random.uniform(-UNIFORM_S_BOUNDS, UNIFORM_S_BOUNDS, NB_CLASSES)
+                sgn = np.sign(int(alive_client_sid, 16) - int(dropped_client_sid, 16))
+                all_masks += sgn * s_mask_for_sid
+
+        # Remove the remaining values, to recover the real Z
+        Z = Z_partial - all_masks
+        print('\nZ = ', Z)
+
+
 
     sio.emit('complete', 'Reconstructed output z!')
     sio.sleep(1)
@@ -506,7 +566,7 @@ if __name__ == '__main__':
     ### RECEIVE ALL NECESSARY INFORMATION FROM CLIENTS ###
     ###     TO RECONSTRUCT AGGREGATED OUTPUT Z         ###
     ######################################################
-    sio.on_event('MASKS', handle_masks)
+    sio.on_event('SHARES', handle_shares)
 
 
 

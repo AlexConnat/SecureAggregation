@@ -168,13 +168,16 @@ def round1(pubkeys):
     CLIENT_VALUES['shares_b'] = shares_b
     CLIENT_VALUES['shares_my_ssk'] = shares_my_ssk
 
-
+    # Store my share of b in isolation:
+    my_share_b = shares_b[0]
+    shares_b = list( set(shares_b) - set([my_share_b]) )
+    CLIENT_VALUES['my_share_b'] = my_share_b
 
     list_encrypted_messages = {}
     for ID, client_sid in enumerate(CLIENT_STORAGE.keys()):
 
         if client_sid == CLIENT_VALUES['my_sid']:
-            continue # Skip my own sid
+            continue # Skip my own sid # FIXME: Actually, I am NOT part of CLIENT_STORAGE.keys()
 
         # Derive encryption key enc_key_for_sid (via Diffie-Hellman Agreement)
         enc_key_for_sid = DHKE.agree(CLIENT_VALUES['my_csk'], CLIENT_STORAGE[client_sid]['cpk'])             #; print('enc_key_for_sid =', enc_key_for_sid)
@@ -277,44 +280,42 @@ def round2(enc_msgs):
 
 
 ################ ROUND 3 ##################
-### SEND MASKS (AND POTENTIALLY SHARES) ###
+### SEND SHARES OF B AND SSK, RESPECTIVELY FOR ALIVE AND DROPPED OUT CLIENTS ###
 ###########################################
 
 # @sio.on('ROUND_3')
 def round3_handler(dropped_out_clients):
     print(bcolors.BOLD + '\n--- Round 3 ---' + bcolors.ENDC)
-    print_success('Received list of dropped out clients from server...', CLIENT_VALUES['my_sid'])
+    print_success('Received list of alive and dropped out clients from server...', CLIENT_VALUES['my_sid'])
     sio.start_background_task(round3, dropped_out_clients)
 
-def round3(dropped_out_clients):
+def round3(clients):
 
-    # print('There are ' + str(len(dropped_out_clients)) + ' clients that dropped out last round:')
-    # for client_sid in dropped_out_clients:
-    #     print('• ' + str(client_sid))
+    alive_clients = list( set(clients['alive']) - set([CLIENT_VALUES['my_sid']]) ) # Except myself
+    dropped_out_clients = clients['dropped_out']
 
-    masks = {}
-    masks['b'] = CLIENT_VALUES['b']
-    masks['shares_dropped_out_clients'] = {}
+    b_shares = {}
+    for alive_client_sid in alive_clients:
+        b_shares[alive_client_sid] = CLIENT_STORAGE[alive_client_sid]['share_b']
+    b_shares[CLIENT_VALUES['my_sid']] = CLIENT_VALUES['my_share_b']
 
+    ssk_shares = {}
     for dropped_client_sid in dropped_out_clients:
-        masks['shares_dropped_out_clients'][dropped_client_sid] = CLIENT_STORAGE[dropped_client_sid]['share_ssk']
+        ssk_shares[dropped_client_sid] = CLIENT_STORAGE[dropped_client_sid]['share_ssk']
 
-    print_info('Sending masks to server...', CLIENT_VALUES['my_sid'])
-    sio.emit('MASKS', masks, callback=server_ack)
+    shares = {}
+    shares['b_shares_alive'] = b_shares # Shares of "b" of alive clients
+    shares['ssk_shares_dropped'] = ssk_shares # Shares of "ssk" of dropped out clients
 
-    # print('MY VALUES:')
-    # pretty_print(CLIENT_VALUES)
-    #
-    # print('MY STORAGE:')
-    # pretty_print(CLIENT_STORAGE)
-
+    print_info('Sending shares to server...', CLIENT_VALUES['my_sid'])
+    sio.emit('SHARES', shares, callback=server_ack)
 
 
 
 ###############################
 ## BIG UNKNOWN CONSTANTS TBD ##
 ###############################
-SIGMA = 20
+SIGMA = 3
 NB_CLASSES = 5
 ###############################
 
