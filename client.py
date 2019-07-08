@@ -141,7 +141,7 @@ def round1(pubkeys):
     # Draw random seed a, and make a gaussian noise mask out of it
     a = secrets.randbits(32)                                                                     #; print('a =', a) # TODO: Chose higher entropy
     np.random.seed(a)
-    a_noise_vector = np.random.normal(0, float(SIGMA)/float(t), NB_CLASSES)                        #; print('a_noise_vector =', a_noise_vector)
+    a_noise_vector = np.random.normal(0, float(SIGMA)/np.sqrt(t), NB_CLASSES)                    #; print('a_noise_vector =', a_noise_vector)
 
     # Draw random seed b, and make a mask out of it
     b = secrets.randbits(32)                                                                    #; print('b =', b)
@@ -291,8 +291,18 @@ def round3_handler(dropped_out_clients):
 
 def round3(clients):
 
-    alive_clients = list( set(clients['alive']) - set([CLIENT_VALUES['my_sid']]) ) # Except myself
+    clients['alive'].sort() # It is essential that all clients have the list in the same order (to select the noise parts to remove)
+
+    # We added t parts of noise, but we actually have e.g t+2 still alive clients --> We can remove 2 noise values from the 2 first clients
+    nb_extra_noises = len(clients['alive']) - CLIENT_VALUES['t']
+
+    extra_noises = []
+    # Add my noise value in the list, if I am part of the first 2 (in the example) clients in "alive_clients"
+    if CLIENT_VALUES['my_sid'] in clients['alive'][0:nb_extra_noises]:
+        extra_noises = list(CLIENT_VALUES['a_noise'])
+
     dropped_out_clients = clients['dropped_out']
+    alive_clients = list( set(clients['alive']) - set([CLIENT_VALUES['my_sid']]) ) # Except myself
 
     b_shares = {}
     for alive_client_sid in alive_clients:
@@ -306,6 +316,7 @@ def round3(clients):
     shares = {}
     shares['b_shares_alive'] = b_shares # Shares of "b" of alive clients
     shares['ssk_shares_dropped'] = ssk_shares # Shares of "ssk" of dropped out clients
+    shares['extra_noises'] = extra_noises
 
     print_info('Sending shares to server...', CLIENT_VALUES['my_sid'])
     sio.emit('SHARES', shares, callback=server_ack)
@@ -315,7 +326,7 @@ def round3(clients):
 ###############################
 ## BIG UNKNOWN CONSTANTS TBD ##
 ###############################
-SIGMA = 3
+SIGMA = 0
 NB_CLASSES = 5
 ###############################
 

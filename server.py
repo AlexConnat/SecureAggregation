@@ -170,19 +170,13 @@ def handle_shares(shares):
 
     # TODO: Verify assumptions about this y (format etc...)
     # Add the shares from this client SID to the Server Storage
+    ####################################################################################
     SERVER_STORAGE[sending_client_sid]['b_shares_alive'] = shares['b_shares_alive']
     SERVER_STORAGE[sending_client_sid]['ssk_shares_dropped'] = shares['ssk_shares_dropped']
+
+    if shares['extra_noises'] != []:
+        SERVER_VALUES.setdefault('extra_noises', []).append(shares['extra_noises'])
     ####################################################################################
-    # b_shares = shares['b_shares_alive']
-    # ssk_shares = shares['ssk_shares_dropped']
-    # print(bcolors.BOLD + "For alive clients, I received:" + bcolors.ENDC)
-    # for alive_client in SERVER_VALUES['U2']:
-    #     print(alive_client, '-->', b_shares[alive_client])
-    # print()
-    # print(bcolors.BOLD + "For dropped out clients, I received:" + bcolors.ENDC)
-    # for dropped_out_client in SERVER_VALUES['dropped_out_clients_round_2']:
-    #     print(dropped_out_client, '-->', ssk_shares[dropped_out_client])
-    #####################################################################################
 
     # Logging message
     print_success('Received share of mask "b" for alive clients and share of key "ssk" for dropped out clients.', request.sid)
@@ -394,60 +388,9 @@ def round3():
     dropped_out_clients = list( set(SERVER_VALUES['U2']) - set(U3) )
     SERVER_VALUES['dropped_out_clients_round_3'] = dropped_out_clients
 
+    Z = 0
 
-    # print("WELCOME TO ROUND3:")
-    # print("who is alive?", U3)
-    # print("who is dead?", dropped_out_clients)
-    # print("who was dead last round?", SERVER_VALUES['dropped_out_clients_round_2'])
-
-
-    # No users dropped out at Round2, so we can just reconstruct z normally
-    if SERVER_VALUES['dropped_out_clients_round_2'] == []:
-
-        # Retrieve the shares of "b" from all alive clients
-        all_b_shares = []
-        for client_sid in U3:
-            all_b_shares.append(SERVER_STORAGE[client_sid]['b_shares_alive'])
-
-        b_shares_for_sid = {
-            k: [d.get(k) for d in all_b_shares]
-            for k in set().union(*all_b_shares)
-        }
-
-        # Reconstruct "b" from its shares
-        b_for_sid = {}
-        for client_sid in U3:
-            b = SecretSharer.recover_secret(  b_shares_for_sid[client_sid] )
-            b_for_sid[client_sid] = b
-
-        # Remove b from the y that we received from clients, and aggregate the whole
-        Z = 0
-        for client_sid in U3:
-            b = b_for_sid[client_sid]
-            np.random.seed(b)
-            b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)
-            Z += (SERVER_STORAGE[client_sid]['y'] - b_mask)
-
-        print('\nZ = ', Z)
-
-    # Some users dropped out at Round2, so we have to reconstruct their blinding values using their ssk, to then reconstruct z
-    else:
-
-        # Retrieve the shares of "b" from all alive clients
-        all_b_shares = []
-        for client_sid in U3:
-            all_b_shares.append(SERVER_STORAGE[client_sid]['b_shares_alive'])
-
-        b_shares_for_sid = {
-            k: [d.get(k) for d in all_b_shares]
-            for k in set().union(*all_b_shares)
-        }
-
-        # Reconstruct "b" from its shares
-        b_for_sid = {}
-        for client_sid in U3:
-            b = SecretSharer.recover_secret(  b_shares_for_sid[client_sid] )
-            b_for_sid[client_sid] = b
+    if SERVER_VALUES['dropped_out_clients_round_2'] != []:
 
         # Retrieve the shares of "ssk" of dropped out clients from all alive clients
         all_ssk_shares = []
@@ -465,16 +408,6 @@ def round3():
             ssk = SecretSharer.recover_secret( ssk_shares_for_sid[client_sid] )
             ssk_for_sid[client_sid] = ssk
 
-        # Remove b from the y that we received from clients, and aggregate the whole
-        Z_partial = 0
-        for client_sid in U3:
-            b = b_for_sid[client_sid]
-            np.random.seed(b)
-            b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)
-            Z_partial += (SERVER_STORAGE[client_sid]['y'] - b_mask)
-
-        # print('\nZ_partial = ', Z_partial)
-
         # Reconstruct all blinding values (s_masks) for all pairs of alive users with the dropped out users
         all_masks = np.zeros(NB_CLASSES)
         for dropped_client_sid in SERVER_VALUES['dropped_out_clients_round_2']:
@@ -485,28 +418,48 @@ def round3():
                 sgn = np.sign(int(alive_client_sid, 16) - int(dropped_client_sid, 16))
                 all_masks += sgn * s_mask_for_sid
 
-        # Remove the remaining values, to recover the real Z
-        Z = Z_partial - all_masks
-        print('\nZ = ', Z)
+        Z -= all_masks
+
+
+    # Retrieve the shares of "b" from all alive clients
+    all_b_shares = []
+    for client_sid in U3:
+        all_b_shares.append(SERVER_STORAGE[client_sid]['b_shares_alive'])
+
+    b_shares_for_sid = {
+        k: [d.get(k) for d in all_b_shares]
+        for k in set().union(*all_b_shares)
+    }
+
+    # Reconstruct "b" from its shares
+    b_for_sid = {}
+    for client_sid in U3:
+        b = SecretSharer.recover_secret(  b_shares_for_sid[client_sid] )
+        b_for_sid[client_sid] = b
+
+    # Remove b from the y that we received from clients, and aggregate the whole
+    for client_sid in U3:
+        b = b_for_sid[client_sid]
+        np.random.seed(b)
+        b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)
+        Z += (SERVER_STORAGE[client_sid]['y'] - b_mask)
+
+    print('\nZ_maxed = ', Z)
+
+    if 'extra_noises' in SERVER_VALUES:
+        extra_noises = np.array(SERVER_VALUES['extra_noises'])
+        extra_noises_sum = np.sum(extra_noises, axis=0)
+
+        Z -= extra_noises_sum
+
+
+    print('\nZ = ', Z)
 
 
 
     sio.emit('complete', 'Reconstructed output z!')
     sio.sleep(1)
     os._exit(0) # sio.stop() # FIXME  # No problem (SUCCESS_CODE 0?)
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
