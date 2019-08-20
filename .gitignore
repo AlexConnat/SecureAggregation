@@ -2,3 +2,4 @@
 fsio_venv/
 venv/
 venv_secure_aggreg/
+*.DS_Store
