@@ -21,26 +21,16 @@ TIMEOUT_ROUND_0 = 10
 TIMEOUT_ROUND_1 = 5
 TIMEOUT_ROUND_2 = 5
 
+UNIFORM_B_BOUNDS = 1e6
+UNIFORM_S_BOUNDS = 1e6
 
-UNIFORM_B_BOUNDS = 10
-UNIFORM_S_BOUNDS = 100
-
-
-START_TIME = time.time() # TODO: Care about out-of-time messages
+START_TIME = time.time()
 
 DO_GLOBAL_LOGGING = False
+
+
+
 ###############################
-
-
-
-
-##### Just for the PoC - Remove in the final product ###########################
-# @app.route('/server_storage')
-# def index():
-#     return render_template('display_server_storage.html', **SERVER_STORAGE)
-################################################################################
-
-
 
 
 
@@ -214,8 +204,8 @@ def timer_round_0():
     print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_0) # The execution of THIS function will be hang here for TIMEOUT_ROUND_0 seconds
     print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
-    SERVER_VALUES['ROUND'] = 1
-    round0()
+    SERVER_VALUES['ROUND'] = 1  # Enter round 1 in the FSM
+    round0()                    # Process round 0 server logic
 
     # # We're still at round 0, meaning that the timeout occurs before having received
     # # the public keys from all clients

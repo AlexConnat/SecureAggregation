@@ -19,8 +19,8 @@ from AES_encryption import AESCipher
 from utils import bcolors, pretty_print, int_to_hex, print_info, print_success, print_failure
 
 
-UNIFORM_B_BOUNDS = 10
-UNIFORM_S_BOUNDS = 100
+UNIFORM_B_BOUNDS = 1e6
+UNIFORM_S_BOUNDS = 1e6
 
 
 #############################################################################################
