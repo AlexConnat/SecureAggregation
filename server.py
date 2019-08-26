@@ -11,6 +11,7 @@ from shamir_secret_sharing import SecretSharer
 from diffie_hellman import DHKE
 
 import numpy as np
+np.set_printoptions(suppress=True) # No scientific notation
 
 import os
 import sys
@@ -481,37 +482,8 @@ def round3():
 
 if __name__ == '__main__':
 
-    def usage():
-        print(f'Usage: {sys.argv[0]} <mnist|svhn>')
-        sys.exit()
-
-    if len(sys.argv) < 2:
-        usage()
-
-    if sys.argv[1] == 'mnist':
-        DATASET = 'MNIST_250'
-    elif sys.argv[1] == 'svhn':
-        DATASET = 'svhn250'
-    else:
-        print(f'Error: Invalid dataset "{sys.argv[1]}".\n')
-        usage()
-
-    # Numbers from the Papernot 2018 paper
-    # Total number of samples have been commented out
-    if DATASET == 'MNIST_250':
-        #NB_SAMPLES = 10000
-        NB_SAMPLES = 640
-        NB_CLASSES = 10
-        THRESHOLD = 200
-        SIGMA1 = 150
-        SIGMA2 = 40
-    elif DATASET == 'SVHN_250':
-        #NB_SAMPLES = 26032
-        NB_SAMPLES = 8500
-        NB_CLASSES = 10
-        THRESHOLD = 300
-        SIGMA1 = 200
-        SIGMA2 = 40
+    NB_CLASSES = 10
+    SIGMA = 0.005
 
     # Initialization of the parameters (groupID 14) for the Diffie-Hellman
     # Key Exchange algorithm
@@ -542,7 +514,7 @@ if __name__ == '__main__':
     ### RECEIVE PUBLIC KEYS FROM ALL ###
     ###  CLIENTS AND BROADCAST THEM  ###
     ####################################
-    sio.on_event('PUB_KEYS', handle_pubkeys)   # TODO: Should be received and stored at all time!?
+    sio.on_event('PUB_KEYS', handle_pubkeys)   # TODO: Should be received and stored whenever the round
 
     ################ ROUND 1 #################
     ### RECEIVE LIST OF ENCRYPTED MESSAGES ###
