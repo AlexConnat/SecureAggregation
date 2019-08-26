@@ -13,12 +13,9 @@ from diffie_hellman import DHKE
 import numpy as np
 
 import os
+import sys
 
-###############################
-## BIG UNKNOWN CONSTANTS TBD ##
-###############################
-SIGMA = 3
-NB_CLASSES = 5
+
 
 TIMEOUT_ROUND_0 = 10
 TIMEOUT_ROUND_1 = 5
@@ -116,8 +113,12 @@ def handle_encrypted_messages(encrypted_messages):
     # Add this client SID in the list of active clients at round 1
     SERVER_VALUES['U1'].append(sending_client_sid)
 
-    # # No clients from last round have dropped out, and this is the last client we're receiving the list of encrypted messages from
-    # if set(SERVER_VALUES['U1']) == set(SERVER_VALUES['U0']):
+    # No clients from last round have dropped out, and this is the last client we're receiving the list of encrypted messages from
+    if set(SERVER_VALUES['U1']) == set(SERVER_VALUES['U0']):
+        print('ROUND1 COMPLETE')
+        ending_time_round_1 = time.time()
+        elapsed_time_round_1 = ending_time_round_1 - SERVER_VALUES['starting_time_round_1']
+        print('Time Elapsed:', elapsed_time_round_1)
     #     goto_next_round()
     #     SERVER_VALUES['ROUND'] = 2           # Enter Round2 in the FSM (hence, does not accept list of encrypted messages from clients anymore)
     #     sio.sleep(3)
@@ -148,8 +149,12 @@ def handle_y(y):
     # Add this client SID in the list of active clients at round 2
     SERVER_VALUES['U2'].append(sending_client_sid)
 
-    # # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
-    # if set(SERVER_VALUES['U2']) == set(SERVER_VALUES['U1']):
+    # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
+    if set(SERVER_VALUES['U2']) == set(SERVER_VALUES['U1']):
+        print('ROUND2 COMPLETE')
+        ending_time_round_2 = time.time()
+        elapsed_time_round_2 = ending_time_round_2 - SERVER_VALUES['starting_time_round_2']
+        print('Time Elapsed:', elapsed_time_round_2)
     #     SERVER_VALUES['ROUND'] = 3           # Enter Round3 in the FSM (hence, does not accept masked inputs y from clients anymore)
     #     # sio.sleep(3)
     #     sio.start_background_task(round2())  # Proceed directly to Round2 server-side logic
@@ -184,8 +189,12 @@ def handle_shares(shares):
     # Add this client SID in the list of active clients at round 3
     SERVER_VALUES['U3'].append(sending_client_sid)
 
-    # # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
-    # if set(SERVER_VALUES['U3']) == set(SERVER_VALUES['U2']):
+    # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
+    if set(SERVER_VALUES['U3']) == set(SERVER_VALUES['U2']):
+        print('ROUND3 COMPLETE')
+        ending_time_round_3 = time.time()
+        elapsed_time_round_3 = ending_time_round_3 - SERVER_VALUES['starting_time_round_3']
+        print('Time Elapsed:', elapsed_time_round_3)
     #     SERVER_VALUES['ROUND'] = 4           # Enter Round4 in the FSM (hence, does not accept list of blinding values from clients anymore)
     #     # sio.sleep(3)
     #     sio.start_background_task(round3())  # Proceed directly to Round3 server-side logic
@@ -253,6 +262,7 @@ def round0():
 
 def timer_round_1():
     SERVER_VALUES['U1'] = []
+    SERVER_VALUES['starting_time_round_1'] = time.time()
     print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_1)
     print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
@@ -314,6 +324,7 @@ def round1():
 
 def timer_round_2():
     SERVER_VALUES['U2'] = []
+    SERVER_VALUES['starting_time_round_2'] = time.time()
     print(bcolors.BOLD + 'Timer Round 2 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_2)
     print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
@@ -361,6 +372,7 @@ def round2():
 
 def timer_round_3():
     SERVER_VALUES['U3'] = []
+    SERVER_VALUES['starting_time_round_3'] = time.time()
     print(bcolors.BOLD + 'Timer Round 3 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_2)
     print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
@@ -469,13 +481,42 @@ def round3():
 
 if __name__ == '__main__':
 
+    def usage():
+        print(f'Usage: {sys.argv[0]} <mnist|svhn>')
+        sys.exit()
 
+    if len(sys.argv) < 2:
+        usage()
 
+    if sys.argv[1] == 'mnist':
+        DATASET = 'MNIST_250'
+    elif sys.argv[1] == 'svhn':
+        DATASET = 'svhn250'
+    else:
+        print(f'Error: Invalid dataset "{sys.argv[1]}".\n')
+        usage()
+
+    # Numbers from the Papernot 2018 paper
+    # Total number of samples have been commented out
+    if DATASET == 'MNIST_250':
+        #NB_SAMPLES = 10000
+        NB_SAMPLES = 640
+        NB_CLASSES = 10
+        THRESHOLD = 200
+        SIGMA1 = 150
+        SIGMA2 = 40
+    elif DATASET == 'SVHN_250':
+        #NB_SAMPLES = 26032
+        NB_SAMPLES = 8500
+        NB_CLASSES = 10
+        THRESHOLD = 300
+        SIGMA1 = 200
+        SIGMA2 = 40
+
+    # Initialization of the parameters (groupID 14) for the Diffie-Hellman
+    # Key Exchange algorithm
     global DHKE
     DHKE = DHKE(groupID=14)
-
-
-
 
     # This dictionary will contain all the values used by the server
     # to keep track of time, rounds, and number of clients
