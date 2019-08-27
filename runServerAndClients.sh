@@ -2,29 +2,29 @@
 
 pythonCmd=/usr/bin/python3
 
-for NB_CLIENTS in {3..20}; do
+for NB_CLIENTS in 150; do
 
 	echo "==== $NB_CLIENTS clients ===="
 
-	for i in {1..20}; do
+	for i in {1..5}; do
 
-		echo "Round $i"
+		echo "Iteration $i"
 
-		$pythonCmd server.py benchmark_${NB_CLIENTS}c_1drop &
+		$pythonCmd server.py $NB_CLIENTS benchmark_${NB_CLIENTS}c_nodrop &
 
 		sleep 0.5
 
 		# non-crashing clients
-		for ((i=0; i<$NB_CLIENTS-1; i++)); do
+		for ((i=0; i<$NB_CLIENTS; i++)); do
     			$pythonCmd client.py & 
 		done
 
 		# crashing clients
-		for i in 1; do
-		    $pythonCmd client.py crash & 
-		done
+		#for i in 1; do
+		#    $pythonCmd client.py crash & 
+		#done
 
-		sleep 10
+		sleep 1700
 
 	done
 

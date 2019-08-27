@@ -63,6 +63,11 @@ def handle_pubkeys(data):
     # Add this client SID in the list of active clients at round 0
     SERVER_VALUES['U0'].append(sending_client_sid)
 
+    # No clients have dropped out so far, and this is the last client we're receiving the public keys from
+    if len(set(SERVER_VALUES['U0'])) == INIT_NB_CLIENTS:
+        SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMM'] = time.time() - SERVER_VALUES['starting_time_round_0']
+        print('Received all pubkeys', SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMM'])
+
     # Acknowledgement message (to the client) that everything went fine
     return True, 'Public keys succesfully received by server.'
 
@@ -73,8 +78,8 @@ def handle_encrypted_messages(encrypted_messages):
 
     # Check in which round the FSM is
     if SERVER_VALUES['ROUND'] != 1:
-        print_failure(str(ROUND) + 'Too late to send list of encrypted messages.', sending_client_sid)
-        return False, str(ROUND) + 'Too late to send your list encrypted messages.' # If False, make this node drop (sio.disconnect()) in the client callback
+        print_failure('Too late to send list of encrypted messages.', sending_client_sid)
+        return False, 'Too late to send your list encrypted messages.' # If False, make this node drop (sio.disconnect()) in the client callback
 
     # TODO: Verify assumptions about this list
     # Add the list of encrypted messages from this client SID to the Server Storage
@@ -91,6 +96,7 @@ def handle_encrypted_messages(encrypted_messages):
     # No clients from last round have dropped out, and this is the last client we're receiving the list of encrypted messages from
     if set(SERVER_VALUES['U1']) == set(SERVER_VALUES['U0']):
         SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMM'] = time.time() - SERVER_VALUES['starting_time_round_1']
+        print('Received all encrypted msgs', SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMM'])
 
     # Acknowledgement message (to the client) that everything went fine
     return True, 'List of encrypted messages succesfully received by server.'
@@ -120,6 +126,7 @@ def handle_y(y):
     # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
     if set(SERVER_VALUES['U2']) == set(SERVER_VALUES['U1']):
         SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMM'] = time.time() - SERVER_VALUES['starting_time_round_2']
+        print('Received all inputs y', SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMM'])
 
     # Acknowledgement message (to the client) that everything went fine
     return True, 'Masked input "y" succesfully received by server.'
@@ -154,6 +161,7 @@ def handle_shares(shares):
     # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
     if set(SERVER_VALUES['U3']) == set(SERVER_VALUES['U2']):
         SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMM'] = time.time() - SERVER_VALUES['starting_time_round_3']
+        print('Received all shares/masks', SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMM'])
 
     return True, 'Shares succesfully received by server.'
 
@@ -167,16 +175,20 @@ def handle_shares(shares):
 
 def timer_round_0():
     SERVER_VALUES['U0'] = []
-    #print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
+    SERVER_VALUES['starting_time_round_0'] = time.time()
+    print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_0) # The execution of THIS function will be hang here for TIMEOUT_ROUND_0 seconds
-    #print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
+    print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 1  # Enter Round1 in the FSM
 
     # For benchmarking purpose...
+    if not 'BENCHMARK_TIME_ROUND_0_COMM' in SERVER_VALUES:
+        SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMM'] = TIMEOUT_ROUND_0
     start = time.time()
     round0()                    # Process Round0 server logic
     stop = time.time()
     SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP'] = stop - start
+    print('Processing Round0 done', SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP']) 
 
 
 def round0():
@@ -217,9 +229,9 @@ def round0():
 def timer_round_1():
     SERVER_VALUES['U1'] = []
     SERVER_VALUES['starting_time_round_1'] = time.time()
-    #print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
+    print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_1)
-    #print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
+    print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 2  # Enter Round2 in the FSM
 
     # For benchmarking purpose...
@@ -229,7 +241,7 @@ def timer_round_1():
     round1()                    # Process Round1 server logic
     stop = time.time()
     SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMP'] = stop - start
-
+    print('Processing Round1 done', SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMP'])
 
 def round1():
     U1 = SERVER_VALUES['U1']
@@ -279,9 +291,9 @@ def round1():
 def timer_round_2():
     SERVER_VALUES['U2'] = []
     SERVER_VALUES['starting_time_round_2'] = time.time()
-    #print(bcolors.BOLD + 'Timer Round 2 Starts' + bcolors.ENDC)
+    print(bcolors.BOLD + 'Timer Round 2 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_2)
-    #print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
+    print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 3  # Enter Round3 in the FSM (does not accept masked inputs "y" from clients anymore)
 
     # For benchmarking purpose...
@@ -291,7 +303,7 @@ def timer_round_2():
     round2()                    # Process Round2 server logic
     stop = time.time()
     SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMP'] = stop - start
-
+    print('Processing Round2 done', SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMP'])
 
 def round2():
 
@@ -328,9 +340,9 @@ def round2():
 def timer_round_3():
     SERVER_VALUES['U3'] = []
     SERVER_VALUES['starting_time_round_3'] = time.time()
-    #print(bcolors.BOLD + 'Timer Round 3 Starts' + bcolors.ENDC)
+    print(bcolors.BOLD + 'Timer Round 3 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_3)
-    #print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
+    print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 4  # Enter Round4 in the FSM (does not accept masks from clients anymore)
 
     # For benchmarking purpose...
@@ -340,6 +352,7 @@ def timer_round_3():
     round3()                    # Process Round3 server logic
     stop = time.time()
     SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMP'] = stop - start
+    print('Processing Round3 done', SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMP'])
 
     # This CSV file will hold the Benchmark results: the times for each round and the total time
     timestamp = int(time.time())
@@ -364,7 +377,7 @@ def timer_round_3():
     csv_row = [ timestamp,
                 TOTAL_TIME,
                 TIMEOUTS,
-                BENCHMARK_TIME_ROUND_0_COMM,
+                SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMM'],
                 SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP'],
                 SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMM'],
                 SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMP'],
@@ -475,10 +488,10 @@ def round3():
 if __name__ == '__main__':
 
     # In practice: should ajust these timeouts to the appropriate RTT
-    TIMEOUT_ROUND_0 = 2
-    TIMEOUT_ROUND_1 = 2
-    TIMEOUT_ROUND_2 = 2
-    TIMEOUT_ROUND_3 = 2
+    TIMEOUT_ROUND_0 = 10
+    TIMEOUT_ROUND_1 = 500
+    TIMEOUT_ROUND_2 = 1000
+    TIMEOUT_ROUND_3 = 1000
 
     # Global constants
     DO_GLOBAL_LOGGING = False
@@ -488,12 +501,12 @@ if __name__ == '__main__':
 
     # 2 sorts of measurements per round, COMMunication time, with the clients
     # and COMPutation time (only the server, processing the logic for this round)
-    BENCHMARK_TIME_ROUND_0_COMM = TIMEOUT_ROUND_0 # This one will always be equal to TIMEOUT_ROUND_0
-    # Others will be stored in SERVER_VALUES as:
+    # Stored in SERVER_VALUES dict, as:
     # SERVER_VALUES['BENCHMARK_TIME_ROUND_i_COMP'] or SERVER_VALUES['BENCHMARK_TIME_ROUND_i_COMM']
     
-    if len(sys.argv) > 1:
-        BENCHMARK_FILENAME = sys.argv[1]
+    assert(len(sys.argv) == 3)
+    INIT_NB_CLIENTS = int(sys.argv[1])
+    BENCHMARK_FILENAME = sys.argv[2]
 
     # Initialization of the parameters (groupID 14) for the Diffie-Hellman
     # Key Exchange algorithm
