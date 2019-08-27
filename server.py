@@ -334,10 +334,8 @@ def timer_round_3():
     SERVER_VALUES['ROUND'] = 4  # Enter Round4 in the FSM (does not accept masks from clients anymore)
 
     # For benchmarking purpose...
-    anyDropouts = False
     if not 'BENCHMARK_TIME_ROUND_3_COMM' in SERVER_VALUES:
         SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMM'] = TIMEOUT_ROUND_3
-        anyDropouts = True
     start = time.time()
     round3()                    # Process Round3 server logic
     stop = time.time()
@@ -346,30 +344,26 @@ def timer_round_3():
     # This CSV file will hold the Benchmark results: the times for each round and the total time
     timestamp = int(time.time())
 
-    if os.path.isfile('BENCHMARK/miaou.csv'):
-        csv_file = open(f'BENCHMARK/miaou.csv', mode='a')
+    if os.path.isfile(f'BENCHMARK/{BENCHMARK_FILENAME}.csv'):
+        csv_file = open(f'BENCHMARK/{BENCHMARK_FILENAME}.csv', mode='a')
         csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     else:
-        csv_file = open(f'BENCHMARK/miaou.csv', mode='w')
+        csv_file = open(f'BENCHMARK/{BENCHMARK_FILENAME}.csv', mode='w')
         # Write CSV Header
         csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        csv_writer.writerow(['Timestamp','TotalTime', 'AdjustedTotalTime',
+        csv_writer.writerow(['Timestamp','TotalTime', 'Timeouts',
                              'Round0Comm', 'Round0Comp', 'Round1Comm', 'Round1Comp',
                              'Round2Comm', 'Round2Comp', 'Round3Comm', 'Round3Comp'])
 
-    # The total time is containig all timeouts. Remove them in adjusted time
-    # If we set some clients to crash at round2, then we cannot avoid TIMEOUT_ROUND_3
+    # The total time is containig all timeouts. 
+    # iNB: If we set some clients to crash at round2, we cannot avoid (and must count) TIMEOUT_ROUND_3
     TOTAL_TIME = time.time() - START_TIME
-    if anyDropouts:
-        BYPASSED_TIMEOUTS = TIMEOUT_ROUND_0+TIMEOUT_ROUND_1+TIMEOUT_ROUND_2
-    else:
-        BYPASSED_TIMEOUTS = TIMEOUT_ROUND_0+TIMEOUT_ROUND_1+TIMEOUT_ROUND_2+TIMEOUT_ROUND_3
-    ADJUSTED_TOTAL_TIME = TOTAL_TIME - BYPASSED_TIMEOUTS
-
+    TIMEOUTS = f'{TIMEOUT_ROUND_0}_{TIMEOUT_ROUND_1}_{TIMEOUT_ROUND_2}_{TIMEOUT_ROUND_3}'
+    
     # Write these Benchmark results to the CSV file
     csv_row = [ timestamp,
                 TOTAL_TIME,
-                ADJUSTED_TOTAL_TIME,
+                TIMEOUTS,
                 BENCHMARK_TIME_ROUND_0_COMM,
                 SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP'],
                 SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMM'],
@@ -402,7 +396,7 @@ def round3():
     Z = 0
 
     if SERVER_VALUES['dropped_out_clients_round_2'] != []:
-
+        
         # Retrieve the shares of "ssk" of dropped out clients from all alive clients
         all_ssk_shares = []
         for client_sid in U3:
@@ -482,9 +476,9 @@ if __name__ == '__main__':
 
     # In practice: should ajust these timeouts to the appropriate RTT
     TIMEOUT_ROUND_0 = 2
-    TIMEOUT_ROUND_1 = 1
-    TIMEOUT_ROUND_2 = 1
-    TIMEOUT_ROUND_3 = 1
+    TIMEOUT_ROUND_1 = 2
+    TIMEOUT_ROUND_2 = 2
+    TIMEOUT_ROUND_3 = 2
 
     # Global constants
     DO_GLOBAL_LOGGING = False
@@ -497,7 +491,9 @@ if __name__ == '__main__':
     BENCHMARK_TIME_ROUND_0_COMM = TIMEOUT_ROUND_0 # This one will always be equal to TIMEOUT_ROUND_0
     # Others will be stored in SERVER_VALUES as:
     # SERVER_VALUES['BENCHMARK_TIME_ROUND_i_COMP'] or SERVER_VALUES['BENCHMARK_TIME_ROUND_i_COMM']
-
+    
+    if len(sys.argv) > 1:
+        BENCHMARK_FILENAME = sys.argv[1]
 
     # Initialization of the parameters (groupID 14) for the Diffie-Hellman
     # Key Exchange algorithm
