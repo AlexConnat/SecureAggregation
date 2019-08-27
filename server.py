@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import csv
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 import time
@@ -15,23 +16,6 @@ np.set_printoptions(suppress=True) # No scientific notation
 
 import os
 import sys
-
-
-
-TIMEOUT_ROUND_0 = 10
-TIMEOUT_ROUND_1 = 5
-TIMEOUT_ROUND_2 = 5
-
-UNIFORM_B_BOUNDS = 1e6
-UNIFORM_S_BOUNDS = 1e6
-
-START_TIME = time.time()
-
-DO_GLOBAL_LOGGING = False
-
-
-
-###############################
 
 
 
@@ -106,14 +90,7 @@ def handle_encrypted_messages(encrypted_messages):
 
     # No clients from last round have dropped out, and this is the last client we're receiving the list of encrypted messages from
     if set(SERVER_VALUES['U1']) == set(SERVER_VALUES['U0']):
-        print('ROUND1 COMPLETE')
-        ending_time_round_1 = time.time()
-        elapsed_time_round_1 = ending_time_round_1 - SERVER_VALUES['starting_time_round_1']
-        print('Time Elapsed:', elapsed_time_round_1)
-    #     goto_next_round()
-    #     SERVER_VALUES['ROUND'] = 2           # Enter Round2 in the FSM (hence, does not accept list of encrypted messages from clients anymore)
-    #     sio.sleep(3)
-    #     sio.start_background_task(round1())  # Proceed directly to Round1 server-side logic
+        SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMM'] = time.time() - SERVER_VALUES['starting_time_round_1']
 
     # Acknowledgement message (to the client) that everything went fine
     return True, 'List of encrypted messages succesfully received by server.'
@@ -142,13 +119,7 @@ def handle_y(y):
 
     # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
     if set(SERVER_VALUES['U2']) == set(SERVER_VALUES['U1']):
-        print('ROUND2 COMPLETE')
-        ending_time_round_2 = time.time()
-        elapsed_time_round_2 = ending_time_round_2 - SERVER_VALUES['starting_time_round_2']
-        print('Time Elapsed:', elapsed_time_round_2)
-    #     SERVER_VALUES['ROUND'] = 3           # Enter Round3 in the FSM (hence, does not accept masked inputs y from clients anymore)
-    #     # sio.sleep(3)
-    #     sio.start_background_task(round2())  # Proceed directly to Round2 server-side logic
+        SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMM'] = time.time() - SERVER_VALUES['starting_time_round_2']
 
     # Acknowledgement message (to the client) that everything went fine
     return True, 'Masked input "y" succesfully received by server.'
@@ -182,13 +153,7 @@ def handle_shares(shares):
 
     # No clients from last round have dropped out, and this is the last client we're receiving the masked input y from
     if set(SERVER_VALUES['U3']) == set(SERVER_VALUES['U2']):
-        print('ROUND3 COMPLETE')
-        ending_time_round_3 = time.time()
-        elapsed_time_round_3 = ending_time_round_3 - SERVER_VALUES['starting_time_round_3']
-        print('Time Elapsed:', elapsed_time_round_3)
-    #     SERVER_VALUES['ROUND'] = 4           # Enter Round4 in the FSM (hence, does not accept list of blinding values from clients anymore)
-    #     # sio.sleep(3)
-    #     sio.start_background_task(round3())  # Proceed directly to Round3 server-side logic
+        SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMM'] = time.time() - SERVER_VALUES['starting_time_round_3']
 
     return True, 'Shares succesfully received by server.'
 
@@ -205,15 +170,13 @@ def timer_round_0():
     print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_0) # The execution of THIS function will be hang here for TIMEOUT_ROUND_0 seconds
     print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
-    SERVER_VALUES['ROUND'] = 1  # Enter round 1 in the FSM
-    round0()                    # Process round 0 server logic
+    SERVER_VALUES['ROUND'] = 1  # Enter Round1 in the FSM
 
-    # # We're still at round 0, meaning that the timeout occurs before having received
-    # # the public keys from all clients
-    # if SERVER_VALUES['ROUND'] < 1:
-    #     print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
-    #     SERVER_VALUES['ROUND'] = 1
-    #     round0()
+    # For benchmarking purpose...
+    start = time.time()
+    round0()                    # Process Round0 server logic
+    stop = time.time()
+    SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP'] = stop - start
 
 
 def round0():
@@ -257,15 +220,15 @@ def timer_round_1():
     print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_1)
     print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
-    SERVER_VALUES['ROUND'] = 2  # Enter round 2 in the FSM
-    round1()                    # Process round 1 server logic
+    SERVER_VALUES['ROUND'] = 2  # Enter Round2 in the FSM
 
-    # # We're still at round 1, and the timeout occurs before having received the list
-    # # of encrypted messages from all clients of last round
-    # if SERVER_VALUES['ROUND'] < 2:
-    #     print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
-    #     SERVER_VALUES['ROUND'] = 2  # Enter round 2 in the FSM
-    #     round1()                    # Process round 1 server logic
+    # For benchmarking purpose...
+    if not 'BENCHMARK_TIME_ROUND_1_COMM' in SERVER_VALUES:
+        SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMM'] = TIMEOUT_ROUND_1
+    start = time.time()
+    round1()                    # Process Round1 server logic
+    stop = time.time()
+    SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMP'] = stop - start
 
 
 def round1():
@@ -320,13 +283,14 @@ def timer_round_2():
     sio.sleep(TIMEOUT_ROUND_2)
     print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 3  # Enter Round3 in the FSM (does not accept masked inputs "y" from clients anymore)
-    round2()                    # Process Round2 server logic
 
-    # # If the timeout occurs before we gathered ??? from all clients of previous round:
-    # if SERVER_VALUES['ROUND'] < 3:
-    #     print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
-    #     SERVER_VALUES['ROUND'] = 3
-    #     round2()
+    # For benchmarking purpose...
+    if not 'BENCHMARK_TIME_ROUND_2_COMM' in SERVER_VALUES:
+        SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMM'] = TIMEOUT_ROUND_2
+    start = time.time()
+    round2()                    # Process Round2 server logic
+    stop = time.time()
+    SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMP'] = stop - start
 
 
 def round2():
@@ -365,16 +329,60 @@ def timer_round_3():
     SERVER_VALUES['U3'] = []
     SERVER_VALUES['starting_time_round_3'] = time.time()
     print(bcolors.BOLD + 'Timer Round 3 Starts' + bcolors.ENDC)
-    sio.sleep(TIMEOUT_ROUND_2)
+    sio.sleep(TIMEOUT_ROUND_3)
     print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 4  # Enter Round4 in the FSM (does not accept masks from clients anymore)
-    round3()                    # Process Round3 server logic
 
-    # # If the timeout occurs before we gathered ??? from all clients of previous round:
-    # if SERVER_VALUES['ROUND'] < 4:
-    #     print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
-    #     SERVER_VALUES['ROUND'] = 4
-    #     round3()
+    # For benchmarking purpose...
+    anyDropouts = False
+    if not 'BENCHMARK_TIME_ROUND_3_COMM' in SERVER_VALUES:
+        SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMM'] = TIMEOUT_ROUND_3
+        anyDropouts = True
+    start = time.time()
+    round3()                    # Process Round3 server logic
+    stop = time.time()
+    SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMP'] = stop - start
+
+    # This CSV file will hold the Benchmark results: the times for each round and the total time
+    timestamp = int(time.time())
+
+    if os.path.isfile('BENCHMARK/miaou.csv'):
+        csv_file = open(f'BENCHMARK/miaou.csv', mode='a')
+        csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    else:
+        csv_file = open(f'BENCHMARK/miaou.csv', mode='w')
+        # Write CSV Header
+        csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        csv_writer.writerow(['Timestamp','TotalTime', 'AdjustedTotalTime',
+                             'Round0Comm', 'Round0Comp', 'Round1Comm', 'Round1Comp',
+                             'Round2Comm', 'Round2Comp', 'Round3Comm', 'Round3Comp'])
+
+    # The total time is containig all timeouts. Remove them in adjusted time
+    # If we set some clients to crash at round2, then we cannot avoid TIMEOUT_ROUND_3
+    TOTAL_TIME = time.time() - START_TIME
+    if anyDropouts:
+        BYPASSED_TIMEOUTS = TIMEOUT_ROUND_0+TIMEOUT_ROUND_1+TIMEOUT_ROUND_2
+    else:
+        BYPASSED_TIMEOUTS = TIMEOUT_ROUND_0+TIMEOUT_ROUND_1+TIMEOUT_ROUND_2+TIMEOUT_ROUND_3
+    ADJUSTED_TOTAL_TIME = TOTAL_TIME - BYPASSED_TIMEOUTS
+
+    # Write these Benchmark results to the CSV file
+    csv_row = [ timestamp,
+                TOTAL_TIME,
+                ADJUSTED_TOTAL_TIME,
+                BENCHMARK_TIME_ROUND_0_COMM,
+                SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP'],
+                SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMM'],
+                SERVER_VALUES['BENCHMARK_TIME_ROUND_1_COMP'],
+                SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMM'],
+                SERVER_VALUES['BENCHMARK_TIME_ROUND_2_COMP'],
+                SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMM'],
+                SERVER_VALUES['BENCHMARK_TIME_ROUND_3_COMP'] ]
+    csv_writer.writerow(csv_row)
+    csv_file.close()
+
+    sio.sleep(1)
+    os._exit(0) # sio.stop() # FIXME  # No problem (SUCCESS_CODE 0?)
 
 
 def round3():
@@ -387,7 +395,7 @@ def round3():
         sio.sleep(1)
         os._exit(-1) # sio.stop() # FIXME
 
-    # The "dropped out clients" are all the clients sid that were present in the set U0 but not in U1
+    # The "dropped out clients" are all the clients sid that were present in the set U2 but not in U3
     dropped_out_clients = list( set(SERVER_VALUES['U2']) - set(U3) )
     SERVER_VALUES['dropped_out_clients_round_3'] = dropped_out_clients
 
@@ -447,24 +455,23 @@ def round3():
         b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)
         Z += (SERVER_STORAGE[client_sid]['y'] - b_mask)
 
-    print('\nZ_maxed = ', Z)
-
+    # More noise that neccesary (t), remove that extra noise
     if 'extra_noises' in SERVER_VALUES:
         extra_noises = np.array(SERVER_VALUES['extra_noises'])
         extra_noises_sum = np.sum(extra_noises, axis=0)
 
         Z -= extra_noises_sum
 
-
+    # Z is now the approriately noised array, containing the aggregation of private
+    # vectors of the still alive clients
     print('\nZ = ', Z)
 
-
+    # For Decentralized PATE, the label would be the argmax of this vote vector
+    #print('LABEL:', np.argmax(Z))
 
     sio.emit('complete', 'Reconstructed output z!')
-    sio.sleep(1)
-    os._exit(0) # sio.stop() # FIXME  # No problem (SUCCESS_CODE 0?)
 
-
+    # Go back to function call (ret) and exit in function timer_round3() above
 
 
 
@@ -472,8 +479,24 @@ def round3():
 
 if __name__ == '__main__':
 
-    NB_CLASSES = 10
-    SIGMA = 0.005
+    # In practice: should ajust these timeouts to the appropriate RTT
+    TIMEOUT_ROUND_0 = 5
+    TIMEOUT_ROUND_1 = 1
+    TIMEOUT_ROUND_2 = 1
+    TIMEOUT_ROUND_3 = 1
+
+    # Global constants
+    DO_GLOBAL_LOGGING = False
+    NB_CLASSES = 10 # Need to know this to appropriately size our arrays
+    UNIFORM_B_BOUNDS = 1e6 # Min and Max bounds for random b masking values
+    UNIFORM_S_BOUNDS = 1e6 # Min and Max bounds for random s masking values
+
+    # 2 sorts of measurements per round, COMMunication time, with the clients
+    # and COMPutation time (only the server, processing the logic for this round)
+    BENCHMARK_TIME_ROUND_0_COMM = TIMEOUT_ROUND_0 # This one will always be equal to TIMEOUT_ROUND_0
+    # Others will be stored in SERVER_VALUES as:
+    # SERVER_VALUES['BENCHMARK_TIME_ROUND_i_COMP'] or SERVER_VALUES['BENCHMARK_TIME_ROUND_i_COMM']
+
 
     # Initialization of the parameters (groupID 14) for the Diffie-Hellman
     # Key Exchange algorithm
@@ -525,15 +548,11 @@ if __name__ == '__main__':
     sio.on_event('SHARES', handle_shares)
 
 
+    # Start the global timer for benchmarking purposes
+    START_TIME = time.time()
 
-    ### TO PUT INTO A BACKGROUND TASK ###
-    # input("Press Spacebar to continue...")
-    # # Block until key pressed
-    # sio.sleep(1)
-    # sio.emit('START', 'Some classification task')
-    ######
-
+    # Start the timer (timeout) for this round
     sio.start_background_task(timer_round_0)
 
-
+    # TODO: Put address and port in a server.ini config file
     sio.run(app, host='127.0.0.1', port=9876, debug=DO_GLOBAL_LOGGING)

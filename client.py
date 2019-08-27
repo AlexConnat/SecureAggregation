@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import random
 import secrets
 import sys
@@ -187,6 +188,10 @@ def round1(pubkeys):
     print_info('Sending list of encrypted messages to server...', CLIENT_VALUES['my_sid'])
     sio.emit('ENC_MSGS', list_encrypted_messages, callback=server_ack)
 
+    if WILL_CRASH:
+        sio.sleep(1)
+        os._exit(0)
+
 
 
 ########### ROUND 2 ##############
@@ -316,6 +321,13 @@ def round3(clients):
 
 if __name__ == '__main__':
 
+    WILL_CRASH = False
+    if len(sys.argv) > 1:
+        if sys.argv[1] == 'crash':
+            WILL_CRASH = True
+        else:
+            print('Unknown parameter:', sys.argv[1])
+
     NB_CLASSES = 10
     SIGMA = 0.005
 
@@ -339,7 +351,7 @@ if __name__ == '__main__':
 
     # Connect this client to the server. Upon connection, this client receives a unique socket id "my_sid"
     # that we store in the CLIENT_VALUES
-    sio.connect('http://127.0.0.1:9876') # TODO: Config file
+    sio.connect('http://127.0.0.1:9876') # TODO: Put address and port in a server.ini config file
     CLIENT_VALUES['my_sid'] = sio.eio.sid
 
     print('My sid =', CLIENT_VALUES['my_sid'])
