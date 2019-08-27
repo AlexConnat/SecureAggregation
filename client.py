@@ -33,7 +33,8 @@ UNIFORM_S_BOUNDS = 1e6
 
 def server_ack(OK, msg):
     if OK:
-        print_success(msg, CLIENT_VALUES['my_sid'])
+        pass
+        #print_success(msg, CLIENT_VALUES['my_sid'])
     else:
         print_failure(msg, CLIENT_VALUES['my_sid'])
         sio.disconnect()
@@ -55,12 +56,8 @@ def abort(reason):
 
 # @sio.on('complete')
 def complete(reason):
-    print()
-    print(bcolors.BOLD + bcolors.PURPLE + reason + bcolors.ENDC)
-    # print()
-    # pretty_print(CLIENT_VALUES)
-    # pretty_print(CLIENT_STORAGE)
-    # print()
+    #print()
+    #print(bcolors.BOLD + bcolors.PURPLE + reason + bcolors.ENDC)
     sio.disconnect()
 
 
@@ -79,7 +76,7 @@ def complete(reason):
 
 def round0():
 
-    print(bcolors.BOLD + '\n--- Round 0 ---' + bcolors.ENDC)
+    #print(bcolors.BOLD + '\n--- Round 0 ---' + bcolors.ENDC)
 
     # Generate the 2 pair of Diffie-Hellman keys
     # "s" will be used to generate the seed for the shared mask, and "c" the shared encryption key
@@ -91,7 +88,7 @@ def round0():
     CLIENT_VALUES['my_csk'] = my_csk; CLIENT_VALUES['my_cpk'] = my_cpk
 
     # Send the client's public key for "c" and "s" to the server
-    print_info('Sending pubkeys to server...', CLIENT_VALUES['my_sid'])
+    #print_info('Sending pubkeys to server...', CLIENT_VALUES['my_sid'])
     sio.emit('PUB_KEYS', {'cpk':my_cpk, 'spk':my_spk}, callback=server_ack)
 
 
@@ -103,8 +100,8 @@ def round0():
 
 # @sio.on('ROUND_1')
 def round1_handler(pubkeys):
-    print(bcolors.BOLD + '\n--- Round 1 ---' + bcolors.ENDC)
-    print_success('Received public keys from server...', CLIENT_VALUES['my_sid'])
+    #print(bcolors.BOLD + '\n--- Round 1 ---' + bcolors.ENDC)
+    #print_success('Received public keys from server...', CLIENT_VALUES['my_sid'])
     sio.start_background_task(round1, pubkeys)
 
 def round1(pubkeys):
@@ -134,13 +131,13 @@ def round1(pubkeys):
     # Draw random seed b, and make a mask out of it
     b = secrets.randbits(32)                                                                    #; print('b =', b)
     np.random.seed(b)
-    b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)                                             #; print('b_mask =', b_mask) # TODO: HOW TO CHOOSE THOSE VALUES???
+    b_mask = np.random.uniform(-UNIFORM_B_BOUNDS, UNIFORM_B_BOUNDS, NB_CLASSES)                 #; print('b_mask =', b_mask) # TODO: HOW TO CHOOSE THOSE VALUES???
 
     # Create t-out-of-n shares for seed a
-    shares_a = SecretSharer.split_secret(a, t, n)                                   #; print('shares_a =', shares_a)
+    shares_a = SecretSharer.split_secret(a, t, n)                                               #; print('shares_a =', shares_a)
 
     # Create t-out-of-n shares for seed b
-    shares_b = SecretSharer.split_secret(b, t, n)                                   #; print('shares_b =', shares_b)
+    shares_b = SecretSharer.split_secret(b, t, n)                                               #; print('shares_b =', shares_b)
 
     # Create t-out-of-n shares for my private key my_ssk (as an hex_string)
     shares_my_ssk = SecretSharer.split_secret(CLIENT_VALUES['my_ssk'], t, n)                    #; print('shares_my_ssk =', shares_my_ssk)
@@ -185,7 +182,7 @@ def round1(pubkeys):
         CLIENT_STORAGE[client_sid]['enc_msg'] = enc_msg
 
 
-    print_info('Sending list of encrypted messages to server...', CLIENT_VALUES['my_sid'])
+    #print_info('Sending list of encrypted messages to server...', CLIENT_VALUES['my_sid'])
     sio.emit('ENC_MSGS', list_encrypted_messages, callback=server_ack)
 
     if WILL_CRASH:
@@ -200,8 +197,8 @@ def round1(pubkeys):
 
 # @sio.on('ROUND_2')
 def round2_handler(enc_msgs):
-    print(bcolors.BOLD + '\n--- Round 2 ---' + bcolors.ENDC)
-    print_success('Received list of encrypted messages for me from server...', CLIENT_VALUES['my_sid'])
+    #print(bcolors.BOLD + '\n--- Round 2 ---' + bcolors.ENDC)
+    #print_success('Received list of encrypted messages for me from server...', CLIENT_VALUES['my_sid'])
     sio.start_background_task(round2, enc_msgs)
     # return True, 'List of encrypted messages succesfully received by client.', CLIENT_VALUES['my_sid'] # TODO: Acknowledgement is confusing in the logs
 
@@ -248,8 +245,6 @@ def round2(enc_msgs):
     # First the noisy input (the one that the server will aggregate)
     noisy_x = CLIENT_VALUES['x'] + CLIENT_VALUES['a_noise']
 
-    print('NOISY X:', noisy_x)
-
     # Then, add the individual mask
     yy = noisy_x + CLIENT_VALUES['b_mask']
 
@@ -266,7 +261,7 @@ def round2(enc_msgs):
     # Here is the final output "y" to send to server
     y = yy + all_masks
 
-    print_info('Sending masked input "y" to server...', CLIENT_VALUES['my_sid'])
+    #print_info('Sending masked input "y" to server...', CLIENT_VALUES['my_sid'])
     sio.emit('INPUT_Y', list(y), callback=server_ack) # Send "y" as a python list because numpy arrays are not JSON-serializable
 
 
@@ -277,8 +272,8 @@ def round2(enc_msgs):
 
 # @sio.on('ROUND_3')
 def round3_handler(dropped_out_clients):
-    print(bcolors.BOLD + '\n--- Round 3 ---' + bcolors.ENDC)
-    print_success('Received list of alive and dropped out clients from server...', CLIENT_VALUES['my_sid'])
+    #print(bcolors.BOLD + '\n--- Round 3 ---' + bcolors.ENDC)
+    #print_success('Received list of alive and dropped out clients from server...', CLIENT_VALUES['my_sid'])
     sio.start_background_task(round3, dropped_out_clients)
 
 def round3(clients):
@@ -310,7 +305,7 @@ def round3(clients):
     shares['ssk_shares_dropped'] = ssk_shares # Shares of "ssk" of dropped out clients
     shares['extra_noises'] = extra_noises
 
-    print_info('Sending shares to server...', CLIENT_VALUES['my_sid'])
+    #print_info('Sending shares to server...', CLIENT_VALUES['my_sid'])
     sio.emit('SHARES', shares, callback=server_ack)
 
 
@@ -354,7 +349,7 @@ if __name__ == '__main__':
     sio.connect('http://127.0.0.1:9876') # TODO: Put address and port in a server.ini config file
     CLIENT_VALUES['my_sid'] = sio.eio.sid
 
-    print('My sid =', CLIENT_VALUES['my_sid'])
+    #print('My sid =', CLIENT_VALUES['my_sid'])
 
     # "connect" and "disconnect" are 2 special events generated by socketIO upon socket creation
     # and destruction. "abort" is a custom event that we created upon server stopping.
@@ -380,7 +375,7 @@ if __name__ == '__main__':
     # TODO: Load the real private votes array, not a random one
     CLIENT_VALUES['x'] = np.zeros(NB_CLASSES)
     CLIENT_VALUES['x'][int(time.time()) % NB_CLASSES] = 1 # one-hot-encoded vector
-    print('My secret input vector x:', CLIENT_VALUES['x'])
+    #print('My secret input vector x:', CLIENT_VALUES['x'])
 
     ############# ROUND 0 ###############
     ### GENERATE AND SEND PUBLIC KEYS ###

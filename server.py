@@ -58,7 +58,7 @@ def handle_pubkeys(data):
         return False, 'Missing key spk in your message.'
 
     # Logging message
-    print_success('Received public keys.', sending_client_sid)
+    #print_success('Received public keys.', sending_client_sid)
 
     # Add this client SID in the list of active clients at round 0
     SERVER_VALUES['U0'].append(sending_client_sid)
@@ -83,7 +83,7 @@ def handle_encrypted_messages(encrypted_messages):
     #############################################
 
     # Logging message
-    print_success('Received list of encrypted messages.', sending_client_sid)
+    #print_success('Received list of encrypted messages.', sending_client_sid)
 
     # Add this client SID in the list of active clients at round 1
     SERVER_VALUES['U1'].append(sending_client_sid)
@@ -112,7 +112,7 @@ def handle_y(y):
     ############################################################
 
     # Logging message
-    print_success('Received masked input "y".', request.sid)
+    #print_success('Received masked input "y".', request.sid)
 
     # Add this client SID in the list of active clients at round 2
     SERVER_VALUES['U2'].append(sending_client_sid)
@@ -146,7 +146,7 @@ def handle_shares(shares):
     ####################################################################################
 
     # Logging message
-    print_success('Received share of mask "b" for alive clients and share of key "ssk" for dropped out clients.', request.sid)
+    #print_success('Received share of mask "b" for alive clients and share of key "ssk" for dropped out clients.', request.sid)
 
     # Add this client SID in the list of active clients at round 3
     SERVER_VALUES['U3'].append(sending_client_sid)
@@ -167,9 +167,9 @@ def handle_shares(shares):
 
 def timer_round_0():
     SERVER_VALUES['U0'] = []
-    print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
+    #print(bcolors.BOLD + 'Timer Round 0 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_0) # The execution of THIS function will be hang here for TIMEOUT_ROUND_0 seconds
-    print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
+    #print(bcolors.BOLD + 'Timer Round 0 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 1  # Enter Round1 in the FSM
 
     # For benchmarking purpose...
@@ -198,9 +198,9 @@ def round0():
         list_pubkeys[client_sid]['cpk'] = SERVER_STORAGE[client_sid]['cpk']
         list_pubkeys[client_sid]['spk'] = SERVER_STORAGE[client_sid]['spk']
 
-    print()
-    print_info('Broadcasting list of pubkeys to clients.', 'Server')
-    print()
+    #print()
+    #print_info('Broadcasting list of pubkeys to clients.', 'Server')
+    #print()
 
     sio.emit('ROUND_1', list_pubkeys) # No callback because it's a broadcast message (room=/)
 
@@ -217,9 +217,9 @@ def round0():
 def timer_round_1():
     SERVER_VALUES['U1'] = []
     SERVER_VALUES['starting_time_round_1'] = time.time()
-    print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
+    #print(bcolors.BOLD + 'Timer Round 1 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_1)
-    print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
+    #print(bcolors.BOLD + 'Timer Round 1 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 2  # Enter Round2 in the FSM
 
     # For benchmarking purpose...
@@ -258,9 +258,9 @@ def round1():
             # print(from_client_sid + ' --> ' + to_client_sid + ' : ' + str(enc_msg_to_client_sid))
             list_enc_msg_TO.setdefault(to_client_sid, {})[from_client_sid] = enc_msg_to_client_sid
 
-    print()
-    print_info('Forwarding lists of encrypted messages to all clients.', 'Server')
-    print()
+    #print()
+    #print_info('Forwarding lists of encrypted messages to all clients.', 'Server')
+    #print()
 
     for client_sid in U1:
         sio.emit('ROUND_2', list_enc_msg_TO[client_sid], room=client_sid)
@@ -279,9 +279,9 @@ def round1():
 def timer_round_2():
     SERVER_VALUES['U2'] = []
     SERVER_VALUES['starting_time_round_2'] = time.time()
-    print(bcolors.BOLD + 'Timer Round 2 Starts' + bcolors.ENDC)
+    #print(bcolors.BOLD + 'Timer Round 2 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_2)
-    print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
+    #print(bcolors.BOLD + 'Timer Round 2 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 3  # Enter Round3 in the FSM (does not accept masked inputs "y" from clients anymore)
 
     # For benchmarking purpose...
@@ -307,9 +307,9 @@ def round2():
     dropped_out_clients = list( set(SERVER_VALUES['U1']) - set(U2) )
     SERVER_VALUES['dropped_out_clients_round_2'] = dropped_out_clients
 
-    print()
-    print_info('Advertise list of alive and dropped out clients from the previous round to all still alive clients.', 'Server')
-    print()
+    #print()
+    #print_info('Advertise list of alive and dropped out clients from the previous round to all still alive clients.', 'Server')
+    #print()
 
     sio.emit('ROUND_3', {'dropped_out': dropped_out_clients, 'alive': U2})
 
@@ -328,9 +328,9 @@ def round2():
 def timer_round_3():
     SERVER_VALUES['U3'] = []
     SERVER_VALUES['starting_time_round_3'] = time.time()
-    print(bcolors.BOLD + 'Timer Round 3 Starts' + bcolors.ENDC)
+    #print(bcolors.BOLD + 'Timer Round 3 Starts' + bcolors.ENDC)
     sio.sleep(TIMEOUT_ROUND_3)
-    print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
+    #print(bcolors.BOLD + 'Timer Round 3 Ends' + bcolors.ENDC)
     SERVER_VALUES['ROUND'] = 4  # Enter Round4 in the FSM (does not accept masks from clients anymore)
 
     # For benchmarking purpose...
@@ -464,7 +464,8 @@ def round3():
 
     # Z is now the approriately noised array, containing the aggregation of private
     # vectors of the still alive clients
-    print('\nZ = ', Z)
+    # print('Z = ', Z)
+    print('[*]', time.time(), 'Done')
 
     # For Decentralized PATE, the label would be the argmax of this vote vector
     #print('LABEL:', np.argmax(Z))
@@ -480,7 +481,7 @@ def round3():
 if __name__ == '__main__':
 
     # In practice: should ajust these timeouts to the appropriate RTT
-    TIMEOUT_ROUND_0 = 5
+    TIMEOUT_ROUND_0 = 2
     TIMEOUT_ROUND_1 = 1
     TIMEOUT_ROUND_2 = 1
     TIMEOUT_ROUND_3 = 1
