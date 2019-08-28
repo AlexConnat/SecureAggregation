@@ -407,6 +407,8 @@ def round3():
     SERVER_VALUES['dropped_out_clients_round_3'] = dropped_out_clients
 
     Z = 0
+    
+    print("NB DROPPED OUT CLIENTS =", len(SERVER_VALUES['dropped_out_clients_round_2']))
 
     if SERVER_VALUES['dropped_out_clients_round_2'] != []:
         
@@ -488,10 +490,10 @@ def round3():
 if __name__ == '__main__':
 
     # In practice: should ajust these timeouts to the appropriate RTT
-    TIMEOUT_ROUND_0 = 30
-    TIMEOUT_ROUND_1 = 30
-    TIMEOUT_ROUND_2 = 30
-    TIMEOUT_ROUND_3 = 30
+    TIMEOUT_ROUND_0 = 60
+    TIMEOUT_ROUND_1 = 60
+    TIMEOUT_ROUND_2 = 60
+    TIMEOUT_ROUND_3 = 60
 
     # Global constants
     DO_GLOBAL_LOGGING = False

@@ -2,8 +2,8 @@
 
 pythonCmd=/usr/bin/python3
 
-ifname="lo"
-limit="100Gbps"
+#ifname="lo"
+#limit="100Gbps"
 
 #for LATENCY in 0.5 5 25 50 100 200; do
      
@@ -15,32 +15,48 @@ limit="100Gbps"
 #sudo tc class add dev $ifname parent 1:1 classid 1:12 htb rate $limit ceil $limit
 #sudo tc qdisc add dev $ifname parent 1:12 netem delay $LATENCY
 
-for NB_CLIENTS in 60 70 80 90 100; do
-#for NB_CLIENTS in 50; do
+#for tuple in 24,16 21,19 \
+#             48,2  45,5 40,10 35,15 30,20 26,24 \
+#             72,3  68,7 60,15 53,22 45,30 38,37 \
+#             95,5 90,10 80,20 70,30 60,40 51,49; do
+  
+for tuple in 24,16  48,2  72,3  95,5 \
+	     21,19  45,5  68,7  90,10 \
+	     40,10  60,15 80,20 \
+	     35,15  53,22 70,30 \
+	     30,20  45,30 60,40 \
+	     26,24  38,37 51,49; do
+
+
+	IFS=","; set -- $tuple;
+   	NB_ALIVE_CLIENTS=$1
+       	NB_CRASHING_CLIENTS=$2
+   
+	NB_CLIENTS=$((NB_ALIVE_CLIENTS + NB_CRASHING_CLIENTS))
 
 	echo "==== $NB_CLIENTS clients ===="
-	echo "($LATENCY ms of latency)"
+	echo "( $NB_ALIVE_CLIENTS, $NB_CRASHING_CLIENTS )"
 	echo ""
 
 	for i in {1..5}; do
 		
 		echo "Iteration $i"
 
-		$pythonCmd server.py $NB_CLIENTS BENCHMARK/benchmark_${NB_CLIENTS}c_nodrop_l${LATENCY} &
+		$pythonCmd server.py $NB_CLIENTS BENCHMARK/benchmark_${NB_CLIENTS}c_drop_${NB_ALIVE_CLIENTS}_${NB_CRASHING_CLIENTS}.csv &
 
 		sleep 0.5
 
 		# non-crashing clients
-		for ((i=0; i<$NB_CLIENTS; i++)); do
+		for ((i=0; i<$NB_ALIVE_CLIENTS; i++)); do
     			$pythonCmd client.py & 
 		done
 
 		# crashing clients
-		#for i in 1; do
-		#    $pythonCmd client.py crash & 
-		#done
+		for ((j=0; j<$NB_CRASHING_CLIENTS; j++)); do
+			$pythonCmd client.py crash & 
+		done
 
-		sleep 150
+		sleep 300
 		echo ""
 
 	done
