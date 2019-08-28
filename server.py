@@ -357,11 +357,11 @@ def timer_round_3():
     # This CSV file will hold the Benchmark results: the times for each round and the total time
     timestamp = int(time.time())
 
-    if os.path.isfile(f'BENCHMARK/{BENCHMARK_FILENAME}.csv'):
-        csv_file = open(f'BENCHMARK/{BENCHMARK_FILENAME}.csv', mode='a')
+    if os.path.isfile(BENCHMARK_FILENAME):
+        csv_file = open(BENCHMARK_FILENAME, mode='a')
         csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     else:
-        csv_file = open(f'BENCHMARK/{BENCHMARK_FILENAME}.csv', mode='w')
+        csv_file = open(BENCHMARK_FILENAME, mode='w')
         # Write CSV Header
         csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         csv_writer.writerow(['Timestamp','TotalTime', 'Timeouts',
@@ -488,10 +488,10 @@ def round3():
 if __name__ == '__main__':
 
     # In practice: should ajust these timeouts to the appropriate RTT
-    TIMEOUT_ROUND_0 = 10
-    TIMEOUT_ROUND_1 = 500
-    TIMEOUT_ROUND_2 = 1000
-    TIMEOUT_ROUND_3 = 1000
+    TIMEOUT_ROUND_0 = 30
+    TIMEOUT_ROUND_1 = 30
+    TIMEOUT_ROUND_2 = 30
+    TIMEOUT_ROUND_3 = 30
 
     # Global constants
     DO_GLOBAL_LOGGING = False
