@@ -195,7 +195,7 @@ def round0():
 
     U0 = SERVER_VALUES['U0']
     n0 = len(U0)
-    if n0 < 3: # At least 3 clients (n=3, t=2)
+    if n0 < 2: # At least 3 clients (n=3, t=2)
         print_failure('Did not receive public keys from enough clients. Abort.', 'Server')
         sio.emit('abort', 'not enough clients') # Broadcast to everyone that the server aborts --> client should disconnect
         sio.sleep(1)
@@ -490,10 +490,10 @@ def round3():
 if __name__ == '__main__':
 
     # In practice: should ajust these timeouts to the appropriate RTT
-    TIMEOUT_ROUND_0 = 60
-    TIMEOUT_ROUND_1 = 60
-    TIMEOUT_ROUND_2 = 60
-    TIMEOUT_ROUND_3 = 60
+    TIMEOUT_ROUND_0 = 20
+    TIMEOUT_ROUND_1 = 20
+    TIMEOUT_ROUND_2 = 20
+    TIMEOUT_ROUND_3 = 20
 
     # Global constants
     DO_GLOBAL_LOGGING = False
