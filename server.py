@@ -81,7 +81,7 @@ def handle_encrypted_messages(encrypted_messages):
         print_failure('Too late to send list of encrypted messages.', sending_client_sid)
         return False, 'Too late to send your list encrypted messages.' # If False, make this node drop (sio.disconnect()) in the client callback
 
-    # TODO: Verify assumptions about this list
+    # TODO: Verify assumptions about this list and about sending_client_sid
     # Add the list of encrypted messages from this client SID to the Server Storage
     ##########################################
     SERVER_STORAGE[sending_client_sid]['list_enc_msg'] = encrypted_messages
@@ -188,7 +188,7 @@ def timer_round_0():
     round0()                    # Process Round0 server logic
     stop = time.time()
     SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP'] = stop - start
-    print('Processing Round0 done', SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP']) 
+    print('Processing Round0 done', SERVER_VALUES['BENCHMARK_TIME_ROUND_0_COMP'])
 
 
 def round0():
@@ -368,11 +368,11 @@ def timer_round_3():
                              'Round0Comm', 'Round0Comp', 'Round1Comm', 'Round1Comp',
                              'Round2Comm', 'Round2Comp', 'Round3Comm', 'Round3Comp'])
 
-    # The total time is containig all timeouts. 
+    # The total time is containig all timeouts.
     # iNB: If we set some clients to crash at round2, we cannot avoid (and must count) TIMEOUT_ROUND_3
     TOTAL_TIME = time.time() - START_TIME
     TIMEOUTS = f'{TIMEOUT_ROUND_0}_{TIMEOUT_ROUND_1}_{TIMEOUT_ROUND_2}_{TIMEOUT_ROUND_3}'
-    
+
     # Write these Benchmark results to the CSV file
     csv_row = [ timestamp,
                 TOTAL_TIME,
@@ -407,11 +407,11 @@ def round3():
     SERVER_VALUES['dropped_out_clients_round_3'] = dropped_out_clients
 
     Z = 0
-    
+
     print("NB DROPPED OUT CLIENTS =", len(SERVER_VALUES['dropped_out_clients_round_2']))
 
     if SERVER_VALUES['dropped_out_clients_round_2'] != []:
-        
+
         # Retrieve the shares of "ssk" of dropped out clients from all alive clients
         all_ssk_shares = []
         for client_sid in U3:
@@ -505,7 +505,7 @@ if __name__ == '__main__':
     # and COMPutation time (only the server, processing the logic for this round)
     # Stored in SERVER_VALUES dict, as:
     # SERVER_VALUES['BENCHMARK_TIME_ROUND_i_COMP'] or SERVER_VALUES['BENCHMARK_TIME_ROUND_i_COMM']
-    
+
     assert(len(sys.argv) == 3)
     INIT_NB_CLIENTS = int(sys.argv[1])
     BENCHMARK_FILENAME = sys.argv[2]
